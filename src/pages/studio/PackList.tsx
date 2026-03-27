@@ -73,7 +73,7 @@ export default function PackList() {
                 const versions = Array.isArray(p.jurisdiction_pack_versions) ? p.jurisdiction_pack_versions : [];
                 const muniName = p.municipalities && !Array.isArray(p.municipalities) ? p.municipalities.name : "–";
                 return (
-                  <TableRow key={p.id}>
+                  <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/studio/packs/${p.id}`)}>
                     <TableCell className="font-medium text-[13px]">{p.name}</TableCell>
                     <TableCell className="text-[12px] text-muted-foreground">{muniName}</TableCell>
                     <TableCell><StatusBadge status={p.status} /></TableCell>
