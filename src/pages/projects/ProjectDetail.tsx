@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import {
   MapPin, LayoutList, Lightbulb, GitBranch, Target,
-  FileText, Send, ClipboardList, ChevronLeft, Plus, BookOpen,
+  FileText, Send, ClipboardList, ChevronLeft, Plus, BookOpen, Info,
 } from "lucide-react";
 import { CreateSiteDialog } from "@/components/dialogs/CreateSiteDialog";
 import { CreateMeasureDialog } from "@/components/dialogs/CreateMeasureDialog";
@@ -25,7 +25,6 @@ import { CreateSnapshotDialog } from "@/components/dialogs/CreateSnapshotDialog"
 
 const tabClass =
   "rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 pb-2 pt-1.5 text-[13px] font-normal data-[state=active]:font-medium";
-
 const thClass = "text-[12px]";
 const tdClass = "text-[13px]";
 const tdMuted = "text-[12px] text-muted-foreground";
@@ -41,18 +40,26 @@ export default function ProjectDetail() {
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("*").eq("id", id!).single();
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*, workspaces(name, organizations(name))")
+        .eq("id", id!)
+        .single();
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && id !== ":id",
   });
 
   if (isLoading) return <div className="p-6 text-[13px] text-muted-foreground">Lädt…</div>;
   if (!project) return <div className="p-6 text-[13px] text-muted-foreground">Projekt nicht gefunden.</div>;
 
+  const workspace = project.workspaces as any;
+  const orgName = workspace?.organizations?.name ?? "–";
+
   return (
     <div>
+      {/* Project header */}
       <div className="border-b border-border bg-card px-6 py-3">
         <div className="flex items-center gap-2 mb-1">
           <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => navigate("/projects")}>
@@ -65,15 +72,21 @@ export default function ProjectDetail() {
           <p className="text-[12px] text-muted-foreground ml-8 max-w-2xl leading-snug">{project.description}</p>
         )}
         <div className="flex items-center gap-4 mt-1.5 ml-8 text-[11px] text-muted-foreground/70">
+          <span>Organisation: {orgName}</span>
+          <span>·</span>
+          <span>Workspace: {workspace?.name ?? "–"}</span>
+          <span>·</span>
           <span>Erstellt {format(new Date(project.created_at), "dd.MM.yyyy")}</span>
           <span>·</span>
           <span>Aktualisiert {format(new Date(project.updated_at), "dd.MM.yyyy")}</span>
         </div>
       </div>
 
-      <Tabs defaultValue="sites" className="w-full">
+      {/* Workspace tabs */}
+      <Tabs defaultValue="overview" className="w-full">
         <div className="border-b border-border bg-card px-6">
           <TabsList className="bg-transparent h-auto p-0 gap-0">
+            <TabsTrigger value="overview" className={tabClass}>Übersicht</TabsTrigger>
             <TabsTrigger value="sites" className={tabClass}>Standorte</TabsTrigger>
             <TabsTrigger value="uses" className={tabClass}>Nutzungen</TabsTrigger>
             <TabsTrigger value="concepts" className={tabClass}>Konzepte</TabsTrigger>
@@ -87,6 +100,7 @@ export default function ProjectDetail() {
           </TabsList>
         </div>
 
+        <TabsContent value="overview" className="p-6 mt-0"><OverviewTab projectId={project.id} /></TabsContent>
         <TabsContent value="sites" className="p-6 mt-0"><SitesTab projectId={project.id} /></TabsContent>
         <TabsContent value="uses" className="p-6 mt-0"><UsesTab projectId={project.id} /></TabsContent>
         <TabsContent value="concepts" className="p-6 mt-0"><ConceptsTab projectId={project.id} /></TabsContent>
@@ -98,6 +112,54 @@ export default function ProjectDetail() {
         <TabsContent value="snapshots" className="p-6 mt-0"><SnapshotsTab projectId={project.id} /></TabsContent>
         <TabsContent value="monitoring" className="p-6 mt-0"><MonitoringTab projectId={project.id} /></TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/* ───────── OVERVIEW ───────── */
+function OverviewTab({ projectId }: { projectId: string }) {
+  const { data: sites } = useQuery({ queryKey: ["project-sites", projectId], queryFn: async () => { const { data } = await supabase.from("project_sites").select("id").eq("project_id", projectId); return data ?? []; } });
+  const { data: concepts } = useQuery({ queryKey: ["project-concepts-count", projectId], queryFn: async () => { const { data } = await supabase.from("mobility_concepts").select("id").eq("project_id", projectId); return data ?? []; } });
+  const { data: scenarios } = useQuery({ queryKey: ["project-scenarios-count", projectId], queryFn: async () => { const { data } = await supabase.from("scenarios").select("id").eq("project_id", projectId); return data ?? []; } });
+  const { data: measures } = useQuery({ queryKey: ["project-measures-count", projectId], queryFn: async () => { const { data } = await supabase.from("measures").select("id").eq("project_id", projectId); return data ?? []; } });
+  const { data: documents } = useQuery({ queryKey: ["project-documents-count", projectId], queryFn: async () => { const { data } = await supabase.from("project_documents").select("id").eq("project_id", projectId); return data ?? []; } });
+  const { data: snapshots } = useQuery({ queryKey: ["project-snapshots-count", projectId], queryFn: async () => { const { data } = await supabase.from("submission_snapshots").select("id").eq("project_id", projectId); return data ?? []; } });
+  const { data: monitoring } = useQuery({ queryKey: ["project-monitoring-count", projectId], queryFn: async () => { const { data } = await supabase.from("monitoring_items").select("id, status").eq("project_id", projectId); return data ?? []; } });
+
+  const openMonitoring = monitoring?.filter(m => m.status === "pending" || m.status === "in_progress").length ?? 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-4 gap-3">
+        <MiniStat label="Standorte" value={sites?.length ?? 0} />
+        <MiniStat label="Konzepte" value={concepts?.length ?? 0} />
+        <MiniStat label="Szenarien" value={scenarios?.length ?? 0} />
+        <MiniStat label="Maßnahmen" value={measures?.length ?? 0} />
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        <MiniStat label="Dokumente" value={documents?.length ?? 0} />
+        <MiniStat label="Einreichungen" value={snapshots?.length ?? 0} />
+        <MiniStat label="Monitoring" value={monitoring?.length ?? 0} />
+        <MiniStat label="Offene Fristen" value={openMonitoring} highlight={openMonitoring > 0} />
+      </div>
+      <div className="border border-border rounded-md bg-card px-4 py-3">
+        <div className="flex items-center gap-2 mb-1">
+          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-[12px] font-medium text-foreground">Arbeitsfluss</span>
+        </div>
+        <p className="text-[12px] text-muted-foreground leading-relaxed">
+          Standorte und Nutzungen definieren → Baseline berechnen → Konzept mit Szenarien und Maßnahmen erstellen → Annahmen und Begründungen dokumentieren → Dokumente und Evidenzen zuordnen → Einreichung erstellen → Monitoring pflegen.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+  return (
+    <div className={`border rounded-md px-3 py-2.5 ${highlight ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"}`}>
+      <div className={`text-xl font-semibold ${highlight ? "text-destructive" : "text-foreground"}`}>{value}</div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -155,7 +217,7 @@ function UsesTab({ projectId }: { projectId: string }) {
     },
   });
   if (isLoading) return <p className={tdMuted}>Lädt…</p>;
-  if (!data?.length) return <EmptyState icon={LayoutList} title="Keine Nutzungsarten definiert" />;
+  if (!data?.length) return <EmptyState icon={LayoutList} title="Keine Nutzungsarten definiert" description="Nutzungsarten und Baseline-Bedarf werden hier verwaltet." />;
   return (
     <Table><TableHeader><TableRow>
       <TableHead className={thClass}>Nutzungsart</TableHead>
@@ -245,7 +307,7 @@ function ScenariosTab({ projectId }: { projectId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["project-scenarios", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("scenarios").select("*").eq("project_id", projectId).order("is_baseline", { ascending: false });
+      const { data, error } = await supabase.from("scenarios").select("*, concept_versions(version_number, mobility_concepts(name))").eq("project_id", projectId).order("is_baseline", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -262,22 +324,28 @@ function ScenariosTab({ projectId }: { projectId: string }) {
        !data?.length ? <EmptyState icon={GitBranch} title="Keine Szenarien erstellt" description="Legen Sie ein Szenario an." /> : (
         <Table><TableHeader><TableRow>
           <TableHead className={thClass}>Name</TableHead>
+          <TableHead className={thClass}>Konzept</TableHead>
           <TableHead className={thClass}>Typ</TableHead>
           <TableHead className={thClass}>Reduktion (%)</TableHead>
           <TableHead className={thClass}>Beschreibung</TableHead>
         </TableRow></TableHeader><TableBody>
-          {data.map((s) => (
-            <TableRow key={s.id}>
-              <TableCell className={`font-medium ${tdClass}`}>{s.name}</TableCell>
-              <TableCell>
-                <span className={`text-[11px] font-medium px-1.5 py-[1px] rounded-[3px] ${s.is_baseline ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}>
-                  {s.is_baseline ? "Baseline" : "Variante"}
-                </span>
-              </TableCell>
-              <TableCell className={tdMuted}>{s.total_reduction_pct ?? "–"}</TableCell>
-              <TableCell className={`${tdMuted} max-w-sm truncate`}>{s.description || "–"}</TableCell>
-            </TableRow>
-          ))}
+          {data.map((s) => {
+            const cv = s.concept_versions as any;
+            const conceptName = cv?.mobility_concepts?.name ?? "–";
+            return (
+              <TableRow key={s.id}>
+                <TableCell className={`font-medium ${tdClass}`}>{s.name}</TableCell>
+                <TableCell className={tdMuted}>{conceptName} v{cv?.version_number ?? "?"}</TableCell>
+                <TableCell>
+                  <span className={`text-[11px] font-medium px-1.5 py-[1px] rounded-[3px] ${s.is_baseline ? "bg-muted text-muted-foreground" : "bg-primary/10 text-primary"}`}>
+                    {s.is_baseline ? "Baseline" : "Variante"}
+                  </span>
+                </TableCell>
+                <TableCell className={tdMuted}>{s.total_reduction_pct ?? "–"}</TableCell>
+                <TableCell className={`${tdMuted} max-w-sm truncate`}>{s.description || "–"}</TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody></Table>
       )}
       <CreateScenarioDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
@@ -291,7 +359,7 @@ function MeasuresTab({ projectId }: { projectId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["project-measures", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("measures").select("*").eq("project_id", projectId).order("created_at");
+      const { data, error } = await supabase.from("measures").select("*, scenarios(name)").eq("project_id", projectId).order("created_at");
       if (error) throw error;
       return data;
     },
@@ -308,6 +376,7 @@ function MeasuresTab({ projectId }: { projectId: string }) {
        !data?.length ? <EmptyState icon={Target} title="Keine Maßnahmen definiert" description="Definieren Sie Mobilitätsmaßnahmen." /> : (
         <Table><TableHeader><TableRow>
           <TableHead className={thClass}>Name</TableHead>
+          <TableHead className={thClass}>Szenario</TableHead>
           <TableHead className={thClass}>Kategorie</TableHead>
           <TableHead className={thClass}>Status</TableHead>
           <TableHead className={thClass}>Reduktion</TableHead>
@@ -315,6 +384,7 @@ function MeasuresTab({ projectId }: { projectId: string }) {
           {data.map((m) => (
             <TableRow key={m.id}>
               <TableCell className={`font-medium ${tdClass}`}>{m.name}</TableCell>
+              <TableCell className={tdMuted}>{(m.scenarios as any)?.name ?? "–"}</TableCell>
               <TableCell className={tdMuted}>{m.category || "–"}</TableCell>
               <TableCell><StatusBadge status={m.status} /></TableCell>
               <TableCell className={tdMuted}>
@@ -335,7 +405,7 @@ function AssumptionsTab({ projectId }: { projectId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["project-assumptions", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("assumptions").select("*").eq("project_id", projectId).order("created_at");
+      const { data, error } = await supabase.from("assumptions").select("*, scenarios(name)").eq("project_id", projectId).order("created_at");
       if (error) throw error;
       return data;
     },
@@ -352,6 +422,7 @@ function AssumptionsTab({ projectId }: { projectId: string }) {
        !data?.length ? <EmptyState icon={Lightbulb} title="Keine Annahmen erfasst" /> : (
         <Table><TableHeader><TableRow>
           <TableHead className={thClass}>Titel</TableHead>
+          <TableHead className={thClass}>Szenario</TableHead>
           <TableHead className={thClass}>Konfidenz</TableHead>
           <TableHead className={thClass}>Quelle</TableHead>
           <TableHead className={thClass}>Erstellt</TableHead>
@@ -359,6 +430,7 @@ function AssumptionsTab({ projectId }: { projectId: string }) {
           {data.map((a) => (
             <TableRow key={a.id}>
               <TableCell className={`font-medium ${tdClass}`}>{a.title}</TableCell>
+              <TableCell className={tdMuted}>{(a.scenarios as any)?.name ?? "–"}</TableCell>
               <TableCell className={tdMuted}>{a.confidence || "–"}</TableCell>
               <TableCell className={tdMuted}>{a.source || "–"}</TableCell>
               <TableCell className={tdMuted}>{format(new Date(a.created_at), "dd.MM.yyyy")}</TableCell>
@@ -377,7 +449,7 @@ function JustificationsTab({ projectId }: { projectId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["project-justifications", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("justifications").select("*").eq("project_id", projectId).order("created_at");
+      const { data, error } = await supabase.from("justifications").select("*, measures(name), assumptions(title)").eq("project_id", projectId).order("created_at");
       if (error) throw error;
       return data;
     },
@@ -395,12 +467,16 @@ function JustificationsTab({ projectId }: { projectId: string }) {
         <Table><TableHeader><TableRow>
           <TableHead className={thClass}>Titel</TableHead>
           <TableHead className={thClass}>Typ</TableHead>
+          <TableHead className={thClass}>Maßnahme</TableHead>
+          <TableHead className={thClass}>Annahme</TableHead>
           <TableHead className={thClass}>Erstellt</TableHead>
         </TableRow></TableHeader><TableBody>
           {data.map((j) => (
             <TableRow key={j.id}>
               <TableCell className={`font-medium ${tdClass}`}>{j.title}</TableCell>
               <TableCell className={tdMuted}>{j.justification_type || "–"}</TableCell>
+              <TableCell className={tdMuted}>{(j.measures as any)?.name ?? "–"}</TableCell>
+              <TableCell className={tdMuted}>{(j.assumptions as any)?.title ?? "–"}</TableCell>
               <TableCell className={tdMuted}>{format(new Date(j.created_at), "dd.MM.yyyy")}</TableCell>
             </TableRow>
           ))}
@@ -501,7 +577,7 @@ function MonitoringTab({ projectId }: { projectId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["project-monitoring", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase.from("monitoring_items").select("*").eq("project_id", projectId).order("due_date", { ascending: true });
+      const { data, error } = await supabase.from("monitoring_items").select("*, measures(name)").eq("project_id", projectId).order("due_date", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -518,6 +594,7 @@ function MonitoringTab({ projectId }: { projectId: string }) {
        !data?.length ? <EmptyState icon={ClipboardList} title="Keine Monitoring-Einträge" description="Erfassen Sie Monitoring-Pflichten." /> : (
         <Table><TableHeader><TableRow>
           <TableHead className={thClass}>Titel</TableHead>
+          <TableHead className={thClass}>Maßnahme</TableHead>
           <TableHead className={thClass}>Status</TableHead>
           <TableHead className={thClass}>Fällig</TableHead>
           <TableHead className={thClass}>Abgeschlossen</TableHead>
@@ -525,6 +602,7 @@ function MonitoringTab({ projectId }: { projectId: string }) {
           {data.map((m) => (
             <TableRow key={m.id}>
               <TableCell className={`font-medium ${tdClass}`}>{m.title}</TableCell>
+              <TableCell className={tdMuted}>{(m.measures as any)?.name ?? "–"}</TableCell>
               <TableCell><StatusBadge status={m.status} /></TableCell>
               <TableCell className={tdMuted}>{m.due_date ? format(new Date(m.due_date), "dd.MM.yyyy") : "–"}</TableCell>
               <TableCell className={tdMuted}>{m.completed_at ? format(new Date(m.completed_at), "dd.MM.yyyy") : "–"}</TableCell>

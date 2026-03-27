@@ -1,30 +1,17 @@
 import {
-  LayoutDashboard, FolderKanban, MapPin, FileText, Package, Scale, Layers,
-  CheckCircle, FlaskConical, Building2, Briefcase, Shield,
-  ScrollText, Rocket,
+  LayoutDashboard, FolderKanban, MapPin, Package,
+  Building2, Briefcase, Shield, ScrollText,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  SidebarSeparator,
-  useSidebar,
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
+  SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
+  SidebarHeader, SidebarSeparator, useSidebar,
 } from "@/components/ui/sidebar";
 import { useUserRole } from "@/hooks/useUserRole";
 import type { LucideIcon } from "lucide-react";
 
-interface NavItem {
-  title: string;
-  url: string;
-  icon: LucideIcon;
-}
+interface NavItem { title: string; url: string; icon: LucideIcon }
 
 const customerItems: NavItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -34,16 +21,11 @@ const customerItems: NavItem[] = [
 const studioItems: NavItem[] = [
   { title: "Dashboard", url: "/studio/dashboard", icon: LayoutDashboard },
   { title: "Kommunen", url: "/studio/municipalities", icon: MapPin },
-  { title: "Quelldokumente", url: "/studio/documents", icon: FileText },
   { title: "Regelpakete", url: "/studio/packs", icon: Package },
-  { title: "Regeln", url: "/studio/rules", icon: Scale },
-  { title: "Regelsets", url: "/studio/rule-sets", icon: Layers },
-  { title: "Prüfungen", url: "/studio/reviews", icon: CheckCircle },
-  { title: "Tests", url: "/studio/tests", icon: FlaskConical },
-  { title: "Releases", url: "/studio/releases", icon: Rocket },
 ];
 
 const adminItems: NavItem[] = [
+  { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Organisationen", url: "/admin/organizations", icon: Building2 },
   { title: "Arbeitsbereiche", url: "/admin/workspaces", icon: Briefcase },
   { title: "Rollen", url: "/admin/roles", icon: Shield },
@@ -66,17 +48,14 @@ export function AppSidebar() {
           <span className="text-[13px] font-bold text-sidebar-foreground">MC</span>
         )}
       </SidebarHeader>
-
       <SidebarContent>
         <NavSection label="Projekt" items={customerItems} collapsed={collapsed} />
-
         {visibleAreas.includes("studio") && (
           <>
             <SidebarSeparator />
             <NavSection label="Pack Studio" items={studioItems} collapsed={collapsed} />
           </>
         )}
-
         {visibleAreas.includes("admin") && (
           <>
             <SidebarSeparator />
@@ -88,15 +67,7 @@ export function AppSidebar() {
   );
 }
 
-function NavSection({
-  label,
-  items,
-  collapsed,
-}: {
-  label: string;
-  items: NavItem[];
-  collapsed: boolean;
-}) {
+function NavSection({ label, items, collapsed }: { label: string; items: NavItem[]; collapsed: boolean }) {
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/50 px-3">

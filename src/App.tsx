@@ -8,13 +8,12 @@ import NotFound from "./pages/NotFound";
 
 import CustomerDashboard from "./pages/CustomerDashboard";
 import StudioDashboard from "./pages/StudioDashboard";
+import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProjectList from "./pages/projects/ProjectList";
 import ProjectDetail from "./pages/projects/ProjectDetail";
-import CreateProjectPage from "./pages/projects/CreateProjectPage";
 import MunicipalityList from "./pages/studio/MunicipalityList";
 import PackList from "./pages/studio/PackList";
 import PackDetail from "./pages/studio/PackDetail";
-import RuleList from "./pages/studio/RuleList";
 import OrganizationList from "./pages/admin/OrganizationList";
 import AuditLog from "./pages/admin/AuditLog";
 import PlaceholderPage from "./pages/PlaceholderPage";
@@ -31,31 +30,24 @@ const App = () => (
           <Route element={<AppLayout />}>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<CustomerDashboard />} />
-            <Route path="/studio/dashboard" element={<StudioDashboard />} />
 
-            {/* Customer Product */}
+            {/* Customer */}
             <Route path="/projects" element={<ProjectList />} />
-            <Route path="/projects/new" element={<CreateProjectPage />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
 
             {/* Pack Studio */}
+            <Route path="/studio/dashboard" element={<StudioDashboard />} />
             <Route path="/studio/municipalities" element={<MunicipalityList />} />
-            <Route path="/studio/documents" element={<PlaceholderPage title="Quelldokumente" description="Zugang über Pack-Workspace" />} />
             <Route path="/studio/packs" element={<PackList />} />
             <Route path="/studio/packs/:id" element={<PackDetail />} />
-            <Route path="/studio/rules" element={<RuleList />} />
-            <Route path="/studio/rule-sets" element={<PlaceholderPage title="Regelsets" description="Zugang über Pack-Workspace" />} />
-            <Route path="/studio/reviews" element={<PlaceholderPage title="Prüfungen" description="Zugang über Pack-Workspace" />} />
-            <Route path="/studio/tests" element={<PlaceholderPage title="Tests" description="Zugang über Pack-Workspace" />} />
-            <Route path="/studio/releases" element={<PlaceholderPage title="Releases" description="Zugang über Pack-Workspace" />} />
 
             {/* Admin */}
+            <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/organizations" element={<OrganizationList />} />
             <Route path="/admin/workspaces" element={<PlaceholderPage title="Arbeitsbereiche" description="Workspace-Verwaltung" />} />
             <Route path="/admin/roles" element={<PlaceholderPage title="Rollen" description="Plattform-Rollenverwaltung" />} />
             <Route path="/admin/audit" element={<AuditLog />} />
           </Route>
-
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
