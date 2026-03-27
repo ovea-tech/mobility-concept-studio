@@ -1,5 +1,5 @@
 import {
-  FolderKanban, MapPin, FileText, Package, Scale, Layers,
+  LayoutDashboard, FolderKanban, MapPin, FileText, Package, Scale, Layers,
   CheckCircle, FlaskConical, Building2, Briefcase, Shield,
   ScrollText, Rocket,
 } from "lucide-react";
@@ -27,10 +27,12 @@ interface NavItem {
 }
 
 const customerItems: NavItem[] = [
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Projekte", url: "/projects", icon: FolderKanban },
 ];
 
 const studioItems: NavItem[] = [
+  { title: "Dashboard", url: "/studio/dashboard", icon: LayoutDashboard },
   { title: "Kommunen", url: "/studio/municipalities", icon: MapPin },
   { title: "Quelldokumente", url: "/studio/documents", icon: FileText },
   { title: "Regelpakete", url: "/studio/packs", icon: Package },

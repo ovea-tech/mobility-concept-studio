@@ -5,14 +5,17 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/table";
-import { Package, Search } from "lucide-react";
+import { Package, Search, Plus } from "lucide-react";
 import { format } from "date-fns";
+import { CreatePackDialog } from "@/components/dialogs/CreatePackDialog";
 
 export default function PackList() {
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["jurisdiction-packs"],
@@ -32,7 +35,16 @@ export default function PackList() {
 
   return (
     <div>
-      <PageHeader title="Regelpakete" description="Kommunenspezifische Jurisdiction Packs">
+      <PageHeader
+        title="Regelpakete"
+        description="Kommunenspezifische Jurisdiction Packs"
+        actions={
+          <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Neues Regelpaket
+          </Button>
+        }
+      >
         <div className="mt-2.5 flex items-center gap-3">
           <div className="relative w-64">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
@@ -72,6 +84,7 @@ export default function PackList() {
           </Table>
         )}
       </div>
+      <CreatePackDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }
