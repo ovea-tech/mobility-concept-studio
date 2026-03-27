@@ -13,6 +13,7 @@ import ProjectDetail from "./pages/projects/ProjectDetail";
 import CreateProjectPage from "./pages/projects/CreateProjectPage";
 import MunicipalityList from "./pages/studio/MunicipalityList";
 import PackList from "./pages/studio/PackList";
+import PackDetail from "./pages/studio/PackDetail";
 import RuleList from "./pages/studio/RuleList";
 import OrganizationList from "./pages/admin/OrganizationList";
 import AuditLog from "./pages/admin/AuditLog";
@@ -39,15 +40,14 @@ const App = () => (
 
             {/* Pack Studio */}
             <Route path="/studio/municipalities" element={<MunicipalityList />} />
-            <Route path="/studio/municipalities/new" element={<PlaceholderPage title="Kommune anlegen" description="Formular wird über Dialog geöffnet" />} />
-            <Route path="/studio/documents" element={<PlaceholderPage title="Quelldokumente" description="Verwaltung von Quellverordnungen und Satzungen" />} />
+            <Route path="/studio/documents" element={<PlaceholderPage title="Quelldokumente" description="Zugang über Pack-Workspace" />} />
             <Route path="/studio/packs" element={<PackList />} />
-            <Route path="/studio/packs/new" element={<PlaceholderPage title="Regelpaket anlegen" description="Formular wird über Dialog geöffnet" />} />
+            <Route path="/studio/packs/:id" element={<PackDetail />} />
             <Route path="/studio/rules" element={<RuleList />} />
-            <Route path="/studio/rule-sets" element={<PlaceholderPage title="Regelsets" description="Gruppierung von Regeln zu Sets" />} />
-            <Route path="/studio/reviews" element={<PlaceholderPage title="Prüfungen" description="Pack-Prüfungen und Freigaben" />} />
-            <Route path="/studio/tests" element={<PlaceholderPage title="Tests" description="Testfälle und Testläufe" />} />
-            <Route path="/studio/releases" element={<PlaceholderPage title="Releases" description="Pack-Veröffentlichungen" />} />
+            <Route path="/studio/rule-sets" element={<PlaceholderPage title="Regelsets" description="Zugang über Pack-Workspace" />} />
+            <Route path="/studio/reviews" element={<PlaceholderPage title="Prüfungen" description="Zugang über Pack-Workspace" />} />
+            <Route path="/studio/tests" element={<PlaceholderPage title="Tests" description="Zugang über Pack-Workspace" />} />
+            <Route path="/studio/releases" element={<PlaceholderPage title="Releases" description="Zugang über Pack-Workspace" />} />
 
             {/* Admin */}
             <Route path="/admin/organizations" element={<OrganizationList />} />
