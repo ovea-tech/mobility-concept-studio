@@ -55,9 +55,9 @@ export default function CustomerDashboard() {
   const byStatus = {
     draft: allProjects.filter((p) => p.status === "draft"),
     active: allProjects.filter((p) => p.status === "active"),
-    in_review: allProjects.filter((p) => p.status === "in_review"),
     submitted: allProjects.filter((p) => p.status === "submitted"),
     approved: allProjects.filter((p) => p.status === "approved"),
+    archived: allProjects.filter((p) => p.status === "archived"),
   };
 
   return (
