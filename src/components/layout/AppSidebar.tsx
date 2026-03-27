@@ -1,7 +1,7 @@
 import {
   FolderKanban, MapPin, FileText, Package, Scale, Layers,
   CheckCircle, FlaskConical, Building2, Briefcase, Shield,
-  ScrollText,
+  ScrollText, Rocket,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
@@ -14,8 +14,10 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
+  SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { useUserRole } from "@/hooks/useUserRole";
 import type { LucideIcon } from "lucide-react";
 
 interface NavItem {
@@ -31,39 +33,54 @@ const customerItems: NavItem[] = [
 const studioItems: NavItem[] = [
   { title: "Kommunen", url: "/studio/municipalities", icon: MapPin },
   { title: "Quelldokumente", url: "/studio/documents", icon: FileText },
-  { title: "Packs", url: "/studio/packs", icon: Package },
-  { title: "Rules", url: "/studio/rules", icon: Scale },
-  { title: "Rule Sets", url: "/studio/rule-sets", icon: Layers },
-  { title: "Reviews", url: "/studio/reviews", icon: CheckCircle },
+  { title: "Regelpakete", url: "/studio/packs", icon: Package },
+  { title: "Regeln", url: "/studio/rules", icon: Scale },
+  { title: "Regelsets", url: "/studio/rule-sets", icon: Layers },
+  { title: "Prüfungen", url: "/studio/reviews", icon: CheckCircle },
   { title: "Tests", url: "/studio/tests", icon: FlaskConical },
+  { title: "Releases", url: "/studio/releases", icon: Rocket },
 ];
 
 const adminItems: NavItem[] = [
   { title: "Organisationen", url: "/admin/organizations", icon: Building2 },
-  { title: "Workspaces", url: "/admin/workspaces", icon: Briefcase },
+  { title: "Arbeitsbereiche", url: "/admin/workspaces", icon: Briefcase },
   { title: "Rollen", url: "/admin/roles", icon: Shield },
-  { title: "Audit", url: "/admin/audit", icon: ScrollText },
+  { title: "Protokoll", url: "/admin/audit", icon: ScrollText },
 ];
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const { visibleAreas } = useUserRole();
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b px-4 py-3">
+    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+      <SidebarHeader className="px-4 py-3">
         {!collapsed ? (
-          <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">
+          <span className="text-[13px] font-semibold tracking-tight text-sidebar-foreground">
             Mobility Compliance
           </span>
         ) : (
-          <span className="text-sm font-bold text-sidebar-foreground">MC</span>
+          <span className="text-[13px] font-bold text-sidebar-foreground">MC</span>
         )}
       </SidebarHeader>
+
       <SidebarContent>
-        <NavSection label="Projekte" items={customerItems} collapsed={collapsed} />
-        <NavSection label="Pack Studio" items={studioItems} collapsed={collapsed} />
-        <NavSection label="Admin" items={adminItems} collapsed={collapsed} />
+        <NavSection label="Projekt" items={customerItems} collapsed={collapsed} />
+
+        {visibleAreas.includes("studio") && (
+          <>
+            <SidebarSeparator />
+            <NavSection label="Pack Studio" items={studioItems} collapsed={collapsed} />
+          </>
+        )}
+
+        {visibleAreas.includes("admin") && (
+          <>
+            <SidebarSeparator />
+            <NavSection label="Verwaltung" items={adminItems} collapsed={collapsed} />
+          </>
+        )}
       </SidebarContent>
     </Sidebar>
   );
@@ -80,7 +97,9 @@ function NavSection({
 }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      <SidebarGroupLabel className="text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/50 px-3">
+        {label}
+      </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           {items.map((item) => (
@@ -88,10 +107,10 @@ function NavSection({
               <SidebarMenuButton asChild>
                 <NavLink
                   to={item.url}
-                  className="hover:bg-sidebar-accent/50"
-                  activeClassName="bg-sidebar-accent text-primary font-medium"
+                  className="flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                  activeClassName="bg-sidebar-accent text-sidebar-foreground font-medium"
                 >
-                  <item.icon className="mr-2 h-4 w-4 shrink-0" />
+                  <item.icon className="h-4 w-4 shrink-0" />
                   {!collapsed && <span>{item.title}</span>}
                 </NavLink>
               </SidebarMenuButton>
