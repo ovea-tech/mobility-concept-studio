@@ -6,14 +6,17 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/table";
-import { FolderKanban, Search } from "lucide-react";
+import { FolderKanban, Search, Plus } from "lucide-react";
 import { format } from "date-fns";
+import { CreateProjectDialog } from "@/components/dialogs/CreateProjectDialog";
 
 export default function ProjectList() {
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
 
   const { data: projects, isLoading } = useQuery({
@@ -34,7 +37,16 @@ export default function ProjectList() {
 
   return (
     <div>
-      <PageHeader title="Projekte" description="Alle Mobilitätskonzept-Projekte">
+      <PageHeader
+        title="Projekte"
+        description="Alle Mobilitätskonzept-Projekte"
+        actions={
+          <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Neues Projekt
+          </Button>
+        }
+      >
         <div className="mt-2.5 flex items-center gap-3">
           <div className="relative w-64">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
@@ -93,6 +105,7 @@ export default function ProjectList() {
           </Table>
         )}
       </div>
+      <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

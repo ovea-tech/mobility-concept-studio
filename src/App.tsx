@@ -6,8 +6,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import NotFound from "./pages/NotFound";
 
+import CustomerDashboard from "./pages/CustomerDashboard";
+import StudioDashboard from "./pages/StudioDashboard";
 import ProjectList from "./pages/projects/ProjectList";
 import ProjectDetail from "./pages/projects/ProjectDetail";
+import CreateProjectPage from "./pages/projects/CreateProjectPage";
 import MunicipalityList from "./pages/studio/MunicipalityList";
 import PackList from "./pages/studio/PackList";
 import RuleList from "./pages/studio/RuleList";
@@ -25,16 +28,21 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Navigate to="/projects" replace />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard" element={<CustomerDashboard />} />
+            <Route path="/studio/dashboard" element={<StudioDashboard />} />
 
             {/* Customer Product */}
             <Route path="/projects" element={<ProjectList />} />
+            <Route path="/projects/new" element={<CreateProjectPage />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
 
             {/* Pack Studio */}
             <Route path="/studio/municipalities" element={<MunicipalityList />} />
+            <Route path="/studio/municipalities/new" element={<PlaceholderPage title="Kommune anlegen" description="Formular wird über Dialog geöffnet" />} />
             <Route path="/studio/documents" element={<PlaceholderPage title="Quelldokumente" description="Verwaltung von Quellverordnungen und Satzungen" />} />
             <Route path="/studio/packs" element={<PackList />} />
+            <Route path="/studio/packs/new" element={<PlaceholderPage title="Regelpaket anlegen" description="Formular wird über Dialog geöffnet" />} />
             <Route path="/studio/rules" element={<RuleList />} />
             <Route path="/studio/rule-sets" element={<PlaceholderPage title="Regelsets" description="Gruppierung von Regeln zu Sets" />} />
             <Route path="/studio/reviews" element={<PlaceholderPage title="Prüfungen" description="Pack-Prüfungen und Freigaben" />} />

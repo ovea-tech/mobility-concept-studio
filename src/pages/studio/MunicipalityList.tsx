@@ -1,16 +1,20 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/table";
-import { MapPin, Search } from "lucide-react";
+import { MapPin, Search, Plus } from "lucide-react";
+import { CreateMunicipalityDialog } from "@/components/dialogs/CreateMunicipalityDialog";
 
 export default function MunicipalityList() {
   const [search, setSearch] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["municipalities"],
@@ -28,7 +32,16 @@ export default function MunicipalityList() {
 
   return (
     <div>
-      <PageHeader title="Kommunen" description="Registry aller verfügbaren Kommunen">
+      <PageHeader
+        title="Kommunen"
+        description="Registry aller verfügbaren Kommunen"
+        actions={
+          <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Neue Kommune
+          </Button>
+        }
+      >
         <div className="mt-2.5 flex items-center gap-3">
           <div className="relative w-64">
             <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
@@ -64,6 +77,7 @@ export default function MunicipalityList() {
           </Table>
         )}
       </div>
+      <CreateMunicipalityDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }
