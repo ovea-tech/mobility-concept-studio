@@ -15,7 +15,7 @@ export default function PlaceholderPage({ title, description }: PlaceholderPageP
         <EmptyState
           icon={Construction}
           title="In Entwicklung"
-          description="Diese Seite wird in Kürze verfügbar sein."
+          description="Dieser Bereich wird in Kürze verfügbar sein."
         />
       </div>
     </div>

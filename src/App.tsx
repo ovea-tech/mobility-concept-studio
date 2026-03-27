@@ -36,13 +36,14 @@ const App = () => (
             <Route path="/studio/documents" element={<PlaceholderPage title="Quelldokumente" description="Verwaltung von Quellverordnungen und Satzungen" />} />
             <Route path="/studio/packs" element={<PackList />} />
             <Route path="/studio/rules" element={<RuleList />} />
-            <Route path="/studio/rule-sets" element={<PlaceholderPage title="Rule Sets" description="Gruppierung von Regeln zu Sets" />} />
-            <Route path="/studio/reviews" element={<PlaceholderPage title="Reviews" description="Pack-Prüfungen und Freigaben" />} />
+            <Route path="/studio/rule-sets" element={<PlaceholderPage title="Regelsets" description="Gruppierung von Regeln zu Sets" />} />
+            <Route path="/studio/reviews" element={<PlaceholderPage title="Prüfungen" description="Pack-Prüfungen und Freigaben" />} />
             <Route path="/studio/tests" element={<PlaceholderPage title="Tests" description="Testfälle und Testläufe" />} />
+            <Route path="/studio/releases" element={<PlaceholderPage title="Releases" description="Pack-Veröffentlichungen" />} />
 
             {/* Admin */}
             <Route path="/admin/organizations" element={<OrganizationList />} />
-            <Route path="/admin/workspaces" element={<PlaceholderPage title="Workspaces" description="Workspace-Verwaltung" />} />
+            <Route path="/admin/workspaces" element={<PlaceholderPage title="Arbeitsbereiche" description="Workspace-Verwaltung" />} />
             <Route path="/admin/roles" element={<PlaceholderPage title="Rollen" description="Plattform-Rollenverwaltung" />} />
             <Route path="/admin/audit" element={<AuditLog />} />
           </Route>

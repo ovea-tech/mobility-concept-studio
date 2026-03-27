@@ -24,35 +24,33 @@ export default function AuditLog() {
 
   return (
     <div>
-      <PageHeader title="Audit Log" description="Systemweites Ereignisprotokoll" />
+      <PageHeader title="Protokoll" description="Systemweites Ereignisprotokoll" />
       <div className="p-6">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Lädt…</p>
+          <p className="text-[13px] text-muted-foreground">Lädt…</p>
         ) : !data?.length ? (
-          <EmptyState icon={ScrollText} title="Keine Audit-Einträge" description="Das Audit-Log ist leer." />
+          <EmptyState icon={ScrollText} title="Keine Einträge vorhanden" description="Das Protokoll ist leer." />
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Zeitpunkt</TableHead>
-                <TableHead>Aktion</TableHead>
-                <TableHead>Entität</TableHead>
-                <TableHead>Entity ID</TableHead>
-                <TableHead>User ID</TableHead>
-              </TableRow>
-            </TableHeader>
+            <TableHeader><TableRow>
+              <TableHead className="text-[12px]">Zeitpunkt</TableHead>
+              <TableHead className="text-[12px]">Aktion</TableHead>
+              <TableHead className="text-[12px]">Entität</TableHead>
+              <TableHead className="text-[12px]">Entitäts-ID</TableHead>
+              <TableHead className="text-[12px]">Nutzer-ID</TableHead>
+            </TableRow></TableHeader>
             <TableBody>
               {data.map((e) => (
                 <TableRow key={e.id}>
-                  <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                  <TableCell className="text-[12px] text-muted-foreground whitespace-nowrap">
                     {format(new Date(e.created_at), "dd.MM.yyyy HH:mm:ss")}
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{e.action}</TableCell>
-                  <TableCell className="text-muted-foreground">{e.entity_type}</TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground truncate max-w-[120px]">
+                  <TableCell className="font-mono text-[12px]">{e.action}</TableCell>
+                  <TableCell className="text-[12px] text-muted-foreground">{e.entity_type}</TableCell>
+                  <TableCell className="font-mono text-[11px] text-muted-foreground truncate max-w-[120px]">
                     {e.entity_id || "–"}
                   </TableCell>
-                  <TableCell className="font-mono text-xs text-muted-foreground truncate max-w-[120px]">
+                  <TableCell className="font-mono text-[11px] text-muted-foreground truncate max-w-[120px]">
                     {e.user_id}
                   </TableCell>
                 </TableRow>

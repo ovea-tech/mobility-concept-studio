@@ -9,12 +9,12 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, description, actions, children }: PageHeaderProps) {
   return (
-    <div className="border-b bg-card px-6 py-4">
+    <div className="border-b border-border bg-card px-6 py-3.5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground">{title}</h1>
+          <h1 className="text-[15px] font-semibold text-foreground leading-tight">{title}</h1>
           {description && (
-            <p className="text-sm text-muted-foreground mt-0.5">{description}</p>
+            <p className="text-[13px] text-muted-foreground mt-0.5 leading-snug">{description}</p>
           )}
         </div>
         {actions && <div className="flex items-center gap-2">{actions}</div>}

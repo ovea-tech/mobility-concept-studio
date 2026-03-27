@@ -1,19 +1,19 @@
 import { cn } from "@/lib/utils";
 
-const statusConfig: Record<string, { label: string; className: string }> = {
-  draft: { label: "Entwurf", className: "bg-muted text-muted-foreground border-border" },
-  active: { label: "Aktiv", className: "bg-blue-50 text-blue-700 border-blue-200" },
-  in_review: { label: "In Prüfung", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  approved: { label: "Freigegeben", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  released: { label: "Veröffentlicht", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  submitted: { label: "Eingereicht", className: "bg-teal-50 text-teal-700 border-teal-200" },
-  pending: { label: "Ausstehend", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  completed: { label: "Abgeschlossen", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
-  overdue: { label: "Überfällig", className: "bg-red-50 text-red-700 border-red-200" },
-  rejected: { label: "Abgelehnt", className: "bg-red-50 text-red-700 border-red-200" },
-  candidate: { label: "Kandidat", className: "bg-muted text-muted-foreground border-border" },
-  proposed: { label: "Vorgeschlagen", className: "bg-muted text-muted-foreground border-border" },
-  retired: { label: "Archiviert", className: "bg-muted text-muted-foreground border-border" },
+const statusConfig: Record<string, { label: string; variant: string }> = {
+  draft: { label: "Entwurf", variant: "bg-muted text-muted-foreground" },
+  active: { label: "Aktiv", variant: "bg-primary/10 text-primary" },
+  in_review: { label: "In Prüfung", variant: "bg-amber-500/10 text-amber-700" },
+  approved: { label: "Freigegeben", variant: "bg-emerald-500/10 text-emerald-700" },
+  released: { label: "Veröffentlicht", variant: "bg-emerald-500/10 text-emerald-700" },
+  submitted: { label: "Eingereicht", variant: "bg-teal-500/10 text-teal-700" },
+  pending: { label: "Ausstehend", variant: "bg-amber-500/10 text-amber-700" },
+  completed: { label: "Abgeschlossen", variant: "bg-emerald-500/10 text-emerald-700" },
+  overdue: { label: "Überfällig", variant: "bg-destructive/10 text-destructive" },
+  rejected: { label: "Abgelehnt", variant: "bg-destructive/10 text-destructive" },
+  candidate: { label: "Kandidat", variant: "bg-muted text-muted-foreground" },
+  proposed: { label: "Vorgeschlagen", variant: "bg-muted text-muted-foreground" },
+  retired: { label: "Archiviert", variant: "bg-muted text-muted-foreground" },
 };
 
 interface StatusBadgeProps {
@@ -24,14 +24,14 @@ interface StatusBadgeProps {
 export function StatusBadge({ status, className }: StatusBadgeProps) {
   const config = statusConfig[status] || {
     label: status,
-    className: "bg-muted text-muted-foreground border-border",
+    variant: "bg-muted text-muted-foreground",
   };
 
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded px-2 py-0.5 text-xs font-medium border",
-        config.className,
+        "inline-flex items-center rounded-[4px] px-1.5 py-[1px] text-[11px] font-medium leading-[18px]",
+        config.variant,
         className
       )}
     >

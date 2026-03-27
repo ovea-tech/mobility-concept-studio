@@ -8,8 +8,8 @@ export function AppLayout() {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-11 flex items-center border-b bg-card px-4 shrink-0">
-            <SidebarTrigger />
+          <header className="h-10 flex items-center border-b border-border bg-card px-3 shrink-0">
+            <SidebarTrigger className="h-7 w-7" />
           </header>
           <main className="flex-1 overflow-auto bg-background">
             <Outlet />

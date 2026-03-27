@@ -35,21 +35,21 @@ export default function ProjectList() {
   return (
     <div>
       <PageHeader title="Projekte" description="Alle Mobilitätskonzept-Projekte">
-        <div className="mt-3 flex items-center gap-3">
-          <div className="relative w-72">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <div className="mt-2.5 flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
             <Input
               placeholder="Projekt suchen…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9"
+              className="pl-8 h-8 text-[13px]"
             />
           </div>
         </div>
       </PageHeader>
       <div className="p-6">
         {isLoading ? (
-          <p className="text-sm text-muted-foreground">Lädt…</p>
+          <p className="text-[13px] text-muted-foreground">Lädt…</p>
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={FolderKanban}
@@ -64,27 +64,27 @@ export default function ProjectList() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Erstellt</TableHead>
-                <TableHead>Aktualisiert</TableHead>
+                <TableHead className="text-[12px]">Name</TableHead>
+                <TableHead className="text-[12px]">Status</TableHead>
+                <TableHead className="text-[12px]">Erstellt</TableHead>
+                <TableHead className="text-[12px]">Aktualisiert</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((project) => (
                 <TableRow
                   key={project.id}
-                  className="cursor-pointer"
+                  className="cursor-pointer hover:bg-muted/50"
                   onClick={() => navigate(`/projects/${project.id}`)}
                 >
-                  <TableCell className="font-medium">{project.name}</TableCell>
+                  <TableCell className="font-medium text-[13px]">{project.name}</TableCell>
                   <TableCell>
                     <StatusBadge status={project.status} />
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
+                  <TableCell className="text-muted-foreground text-[12px]">
                     {format(new Date(project.created_at), "dd.MM.yyyy")}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
+                  <TableCell className="text-muted-foreground text-[12px]">
                     {format(new Date(project.updated_at), "dd.MM.yyyy")}
                   </TableCell>
                 </TableRow>
