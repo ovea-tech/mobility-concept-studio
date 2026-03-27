@@ -17,6 +17,7 @@ import { CreatePackDialog } from "@/components/dialogs/CreatePackDialog";
 export default function PackList() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const navigate = useNavigate();
 
   const { data, isLoading } = useQuery({
     queryKey: ["jurisdiction-packs"],
