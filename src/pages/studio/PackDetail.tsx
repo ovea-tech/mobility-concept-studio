@@ -10,9 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import {
-  ChevronLeft, Plus, Layers, FileText, BookOpen,
-  Scale, CheckCircle, TestTube, Rocket, Clock,
-  Map, LayoutTemplate,
+  ChevronLeft, Plus, Layers, FileText, BookOpen, Scale,
+  CheckCircle, TestTube, Rocket, Clock, Map, LayoutTemplate, Info, AlertTriangle,
 } from "lucide-react";
 import { CreatePackVersionDialog } from "@/components/dialogs/CreatePackVersionDialog";
 import { CreateSourceDocumentDialog } from "@/components/dialogs/CreateSourceDocumentDialog";
@@ -47,7 +46,7 @@ export default function PackDetail() {
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !!id && id !== ":id",
   });
 
   const versions = Array.isArray(pack?.jurisdiction_pack_versions) ? pack.jurisdiction_pack_versions : [];
@@ -76,6 +75,8 @@ export default function PackDetail() {
           <span>Kommune: {pack.municipalities && !Array.isArray(pack.municipalities) ? pack.municipalities.name : "–"}</span>
           <span>·</span>
           <span>{versions.length} Version{versions.length !== 1 ? "en" : ""}</span>
+          <span>·</span>
+          <span>Aktualisiert {format(new Date(pack.updated_at), "dd.MM.yyyy")}</span>
         </div>
         {versions.length > 0 && (
           <div className="ml-8 mt-2 flex items-center gap-2">
@@ -87,21 +88,24 @@ export default function PackDetail() {
               <SelectContent>
                 {versions.map((v) => (
                   <SelectItem key={v.id} value={v.id} className="text-[12px]">
-                    {v.version_label || `v${v.version_number}`} — <span className="capitalize">{v.status}</span>
+                    {v.version_label || `v${v.version_number}`} — {v.status}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {activeVersion && <StatusBadge status={activeVersion.status} />}
           </div>
         )}
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="versions" className="w-full">
+      <Tabs defaultValue="overview" className="w-full">
         <div className="border-b border-border bg-card px-6">
-          <TabsList className="bg-transparent h-auto p-0 gap-0">
+          <TabsList className="bg-transparent h-auto p-0 gap-0 flex-wrap">
+            <TabsTrigger value="overview" className={tabClass}>Übersicht</TabsTrigger>
             <TabsTrigger value="versions" className={tabClass}>Versionen</TabsTrigger>
             <TabsTrigger value="documents" className={tabClass}>Quelldokumente</TabsTrigger>
+            <TabsTrigger value="candidates" className={tabClass}>Kandidaten</TabsTrigger>
             <TabsTrigger value="rules" className={tabClass}>Regeln</TabsTrigger>
             <TabsTrigger value="rulesets" className={tabClass}>Regelsets</TabsTrigger>
             <TabsTrigger value="zones" className={tabClass}>Zonen</TabsTrigger>
@@ -113,11 +117,17 @@ export default function PackDetail() {
           </TabsList>
         </div>
 
+        <TabsContent value="overview" className="p-6 mt-0">
+          <PackOverviewTab packVersionId={activeVersionId} municipalityId={municipalityId} versions={versions} />
+        </TabsContent>
         <TabsContent value="versions" className="p-6 mt-0">
           <VersionsTab packId={pack.id} versions={versions} />
         </TabsContent>
         <TabsContent value="documents" className="p-6 mt-0">
           <SourceDocsTab municipalityId={municipalityId} />
+        </TabsContent>
+        <TabsContent value="candidates" className="p-6 mt-0">
+          <RuleCandidatesTab municipalityId={municipalityId} />
         </TabsContent>
         <TabsContent value="rules" className="p-6 mt-0">
           <RulesTab packVersionId={activeVersionId} />
@@ -144,6 +154,54 @@ export default function PackDetail() {
           <ChangeLogTab packVersionId={activeVersionId} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/* ───── OVERVIEW ───── */
+function PackOverviewTab({ packVersionId, municipalityId, versions }: { packVersionId: string; municipalityId: string; versions: any[] }) {
+  const { data: rules } = useQuery({ queryKey: ["pack-rules-count", packVersionId], queryFn: async () => { if (!packVersionId) return []; const { data } = await supabase.from("rules").select("id").eq("pack_version_id", packVersionId); return data ?? []; }, enabled: !!packVersionId });
+  const { data: ruleSets } = useQuery({ queryKey: ["pack-rulesets-count", packVersionId], queryFn: async () => { if (!packVersionId) return []; const { data } = await supabase.from("rule_sets").select("id").eq("pack_version_id", packVersionId); return data ?? []; }, enabled: !!packVersionId });
+  const { data: reviews } = useQuery({ queryKey: ["pack-reviews-count", packVersionId], queryFn: async () => { if (!packVersionId) return []; const { data } = await supabase.from("pack_reviews").select("id, status").eq("pack_version_id", packVersionId); return data ?? []; }, enabled: !!packVersionId });
+  const { data: tests } = useQuery({ queryKey: ["pack-tests-count", packVersionId], queryFn: async () => { if (!packVersionId) return []; const { data } = await supabase.from("pack_test_cases").select("id").eq("pack_version_id", packVersionId); return data ?? []; }, enabled: !!packVersionId });
+  const { data: docs } = useQuery({ queryKey: ["pack-docs-count", municipalityId], queryFn: async () => { if (!municipalityId) return []; const { data } = await supabase.from("source_documents").select("id").eq("municipality_id", municipalityId); return data ?? []; }, enabled: !!municipalityId });
+  const { data: candidates } = useQuery({ queryKey: ["pack-candidates-count", municipalityId], queryFn: async () => { if (!municipalityId) return []; const { data } = await supabase.from("rule_candidates").select("id").eq("municipality_id", municipalityId); return data ?? []; }, enabled: !!municipalityId });
+  const { data: releases } = useQuery({ queryKey: ["pack-releases-count", packVersionId], queryFn: async () => { if (!packVersionId) return []; const { data } = await supabase.from("pack_releases").select("id").eq("pack_version_id", packVersionId); return data ?? []; }, enabled: !!packVersionId });
+
+  const openReviews = reviews?.filter(r => r.status === "pending").length ?? 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-4 gap-3">
+        <MiniStat label="Versionen" value={versions.length} />
+        <MiniStat label="Quelldokumente" value={docs?.length ?? 0} />
+        <MiniStat label="Kandidaten" value={candidates?.length ?? 0} />
+        <MiniStat label="Regeln" value={rules?.length ?? 0} />
+      </div>
+      <div className="grid grid-cols-4 gap-3">
+        <MiniStat label="Regelsets" value={ruleSets?.length ?? 0} />
+        <MiniStat label="Testfälle" value={tests?.length ?? 0} />
+        <MiniStat label="Releases" value={releases?.length ?? 0} />
+        <MiniStat label="Offene Reviews" value={openReviews} highlight={openReviews > 0} />
+      </div>
+      <div className="border border-border rounded-md bg-card px-4 py-3">
+        <div className="flex items-center gap-2 mb-1">
+          <Info className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-[12px] font-medium text-foreground">Regelpflege-Workflow</span>
+        </div>
+        <p className="text-[12px] text-muted-foreground leading-relaxed">
+          Quelldokumente erfassen → Rule Candidates ableiten → Regeln formalisieren → Regelsets bündeln → Zonen definieren → Tests schreiben → Review durchführen → Release veröffentlichen.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, highlight }: { label: string; value: number; highlight?: boolean }) {
+  return (
+    <div className={`border rounded-md px-3 py-2.5 ${highlight ? "border-destructive/30 bg-destructive/5" : "border-border bg-card"}`}>
+      <div className={`text-xl font-semibold ${highlight ? "text-destructive" : "text-foreground"}`}>{value}</div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
     </div>
   );
 }
@@ -227,13 +285,46 @@ function SourceDocsTab({ municipalityId }: { municipalityId: string }) {
   );
 }
 
+/* ───── RULE CANDIDATES ───── */
+function RuleCandidatesTab({ municipalityId }: { municipalityId: string }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ["pack-rule-candidates", municipalityId],
+    queryFn: async () => {
+      if (!municipalityId) return [];
+      const { data, error } = await supabase.from("rule_candidates").select("*, source_documents(name)").eq("municipality_id", municipalityId).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!municipalityId,
+  });
+  if (isLoading) return <p className={tdMuted}>Lädt…</p>;
+  if (!data?.length) return <EmptyState icon={AlertTriangle} title="Keine Rule Candidates" description="Leiten Sie Regelkandidaten aus Quelldokumenten ab." />;
+  return (
+    <Table><TableHeader><TableRow>
+      <TableHead className={thClass}>Titel</TableHead>
+      <TableHead className={thClass}>Quelldokument</TableHead>
+      <TableHead className={thClass}>Status</TableHead>
+      <TableHead className={thClass}>Erstellt</TableHead>
+    </TableRow></TableHeader><TableBody>
+      {data.map((rc) => (
+        <TableRow key={rc.id}>
+          <TableCell className={`font-medium ${tdClass}`}>{rc.title}</TableCell>
+          <TableCell className={tdMuted}>{(rc.source_documents as any)?.name ?? "–"}</TableCell>
+          <TableCell><StatusBadge status={rc.status} /></TableCell>
+          <TableCell className={tdMuted}>{format(new Date(rc.created_at), "dd.MM.yyyy")}</TableCell>
+        </TableRow>
+      ))}
+    </TableBody></Table>
+  );
+}
+
 /* ───── RULES ───── */
 function RulesTab({ packVersionId }: { packVersionId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["pack-rules", packVersionId],
     queryFn: async () => {
       if (!packVersionId) return [];
-      const { data, error } = await supabase.from("rules").select("*").eq("pack_version_id", packVersionId).order("code");
+      const { data, error } = await supabase.from("rules").select("*, rule_candidates(title)").eq("pack_version_id", packVersionId).order("code");
       if (error) throw error;
       return data;
     },
@@ -245,6 +336,7 @@ function RulesTab({ packVersionId }: { packVersionId: string }) {
     <Table><TableHeader><TableRow>
       <TableHead className={thClass}>Code</TableHead>
       <TableHead className={thClass}>Titel</TableHead>
+      <TableHead className={thClass}>Kandidat</TableHead>
       <TableHead className={thClass}>Kategorie</TableHead>
       <TableHead className={thClass}>Typ</TableHead>
       <TableHead className={thClass}>Status</TableHead>
@@ -253,6 +345,7 @@ function RulesTab({ packVersionId }: { packVersionId: string }) {
         <TableRow key={r.id}>
           <TableCell className={`font-mono font-medium ${tdClass}`}>{r.code}</TableCell>
           <TableCell className={tdClass}>{r.title}</TableCell>
+          <TableCell className={tdMuted}>{(r.rule_candidates as any)?.title ?? "–"}</TableCell>
           <TableCell className={tdMuted}>{r.category || "–"}</TableCell>
           <TableCell className={tdMuted}>{r.rule_type || "–"}</TableCell>
           <TableCell><StatusBadge status={r.status} /></TableCell>
