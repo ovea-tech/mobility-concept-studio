@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,8 +12,12 @@ import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import {
   MapPin, LayoutList, Lightbulb, GitBranch, Target,
-  FileText, Send, ClipboardList, ChevronLeft,
+  FileText, Send, ClipboardList, ChevronLeft, Plus,
 } from "lucide-react";
+import { CreateSiteDialog } from "@/components/dialogs/CreateSiteDialog";
+import { CreateMeasureDialog } from "@/components/dialogs/CreateMeasureDialog";
+import { CreateAssumptionDialog } from "@/components/dialogs/CreateAssumptionDialog";
+import { CreateJustificationDialog } from "@/components/dialogs/CreateJustificationDialog";
 
 const tabClass =
   "rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 pb-2 pt-1.5 text-[13px] font-normal data-[state=active]:font-medium";
@@ -40,15 +45,9 @@ export default function ProjectDetail() {
 
   return (
     <div>
-      {/* Project header */}
       <div className="border-b border-border bg-card px-6 py-3">
         <div className="flex items-center gap-2 mb-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 text-muted-foreground"
-            onClick={() => navigate("/projects")}
-          >
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => navigate("/projects")}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <h1 className="text-[15px] font-semibold leading-tight">{project.name}</h1>
@@ -64,7 +63,6 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      {/* Tabs */}
       <Tabs defaultValue="sites" className="w-full">
         <div className="border-b border-border bg-card px-6">
           <TabsList className="bg-transparent h-auto p-0 gap-0">
@@ -73,6 +71,7 @@ export default function ProjectDetail() {
             <TabsTrigger value="concepts" className={tabClass}>Konzepte</TabsTrigger>
             <TabsTrigger value="scenarios" className={tabClass}>Szenarien</TabsTrigger>
             <TabsTrigger value="measures" className={tabClass}>Maßnahmen</TabsTrigger>
+            <TabsTrigger value="assumptions" className={tabClass}>Annahmen</TabsTrigger>
             <TabsTrigger value="justifications" className={tabClass}>Begründungen</TabsTrigger>
             <TabsTrigger value="documents" className={tabClass}>Dokumente</TabsTrigger>
             <TabsTrigger value="snapshots" className={tabClass}>Einreichungen</TabsTrigger>
@@ -85,6 +84,7 @@ export default function ProjectDetail() {
         <TabsContent value="concepts" className="p-6 mt-0"><ConceptsTab projectId={project.id} /></TabsContent>
         <TabsContent value="scenarios" className="p-6 mt-0"><ScenariosTab projectId={project.id} /></TabsContent>
         <TabsContent value="measures" className="p-6 mt-0"><MeasuresTab projectId={project.id} /></TabsContent>
+        <TabsContent value="assumptions" className="p-6 mt-0"><AssumptionsTab projectId={project.id} /></TabsContent>
         <TabsContent value="justifications" className="p-6 mt-0"><JustificationsTab projectId={project.id} /></TabsContent>
         <TabsContent value="documents" className="p-6 mt-0"><DocumentsTab projectId={project.id} /></TabsContent>
         <TabsContent value="snapshots" className="p-6 mt-0"><SnapshotsTab projectId={project.id} /></TabsContent>
@@ -94,13 +94,16 @@ export default function ProjectDetail() {
   );
 }
 
-// --- Tab Components ---
-
 const thClass = "text-[12px]";
 const tdClass = "text-[13px]";
 const tdMuted = "text-[12px] text-muted-foreground";
 
+function TabToolbar({ children }: { children: React.ReactNode }) {
+  return <div className="flex items-center justify-between mb-4">{children}</div>;
+}
+
 function SitesTab({ projectId }: { projectId: string }) {
+  const [createOpen, setCreateOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["project-sites", projectId],
     queryFn: async () => {
@@ -110,28 +113,37 @@ function SitesTab({ projectId }: { projectId: string }) {
     },
   });
 
-  if (isLoading) return <p className={tdMuted}>Lädt…</p>;
-  if (!data?.length) return <EmptyState icon={MapPin} title="Keine Standorte vorhanden" description="Diesem Projekt sind noch keine Standorte zugeordnet." />;
-
   return (
-    <Table>
-      <TableHeader><TableRow>
-        <TableHead className={thClass}>Name</TableHead>
-        <TableHead className={thClass}>Adresse</TableHead>
-        <TableHead className={thClass}>Fläche (m²)</TableHead>
-        <TableHead className={thClass}>Flurstück</TableHead>
-      </TableRow></TableHeader>
-      <TableBody>
-        {data.map((s) => (
-          <TableRow key={s.id}>
-            <TableCell className={`font-medium ${tdClass}`}>{s.name}</TableCell>
-            <TableCell className={tdMuted}>{s.address || "–"}</TableCell>
-            <TableCell className={tdMuted}>{s.area_sqm ?? "–"}</TableCell>
-            <TableCell className={tdMuted}>{s.cadastral_ref || "–"}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <>
+      <TabToolbar>
+        <span className="text-[13px] font-medium">{data?.length ?? 0} Standorte</span>
+        <Button size="sm" variant="outline" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Standort hinzufügen
+        </Button>
+      </TabToolbar>
+      {isLoading ? <p className={tdMuted}>Lädt…</p> :
+       !data?.length ? <EmptyState icon={MapPin} title="Keine Standorte vorhanden" description="Fügen Sie den ersten Standort hinzu." /> : (
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead className={thClass}>Name</TableHead>
+            <TableHead className={thClass}>Adresse</TableHead>
+            <TableHead className={thClass}>Fläche (m²)</TableHead>
+            <TableHead className={thClass}>Flurstück</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {data.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell className={`font-medium ${tdClass}`}>{s.name}</TableCell>
+                <TableCell className={tdMuted}>{s.address || "–"}</TableCell>
+                <TableCell className={tdMuted}>{s.area_sqm ?? "–"}</TableCell>
+                <TableCell className={tdMuted}>{s.cadastral_ref || "–"}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <CreateSiteDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
+    </>
   );
 }
 
@@ -248,6 +260,7 @@ function ScenariosTab({ projectId }: { projectId: string }) {
 }
 
 function MeasuresTab({ projectId }: { projectId: string }) {
+  const [createOpen, setCreateOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["project-measures", projectId],
     queryFn: async () => {
@@ -257,34 +270,89 @@ function MeasuresTab({ projectId }: { projectId: string }) {
     },
   });
 
-  if (isLoading) return <p className={tdMuted}>Lädt…</p>;
-  if (!data?.length) return <EmptyState icon={Target} title="Keine Maßnahmen definiert" />;
+  return (
+    <>
+      <TabToolbar>
+        <span className="text-[13px] font-medium">{data?.length ?? 0} Maßnahmen</span>
+        <Button size="sm" variant="outline" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Maßnahme hinzufügen
+        </Button>
+      </TabToolbar>
+      {isLoading ? <p className={tdMuted}>Lädt…</p> :
+       !data?.length ? <EmptyState icon={Target} title="Keine Maßnahmen definiert" /> : (
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead className={thClass}>Name</TableHead>
+            <TableHead className={thClass}>Kategorie</TableHead>
+            <TableHead className={thClass}>Status</TableHead>
+            <TableHead className={thClass}>Reduktion</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {data.map((m) => (
+              <TableRow key={m.id}>
+                <TableCell className={`font-medium ${tdClass}`}>{m.name}</TableCell>
+                <TableCell className={tdMuted}>{m.category || "–"}</TableCell>
+                <TableCell><StatusBadge status={m.status} /></TableCell>
+                <TableCell className={tdMuted}>
+                  {m.reduction_value != null ? `${m.reduction_value} ${m.reduction_unit || ""}`.trim() : "–"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <CreateMeasureDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
+    </>
+  );
+}
+
+function AssumptionsTab({ projectId }: { projectId: string }) {
+  const [createOpen, setCreateOpen] = useState(false);
+  const { data, isLoading } = useQuery({
+    queryKey: ["project-assumptions", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("assumptions").select("*").eq("project_id", projectId).order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   return (
-    <Table>
-      <TableHeader><TableRow>
-        <TableHead className={thClass}>Name</TableHead>
-        <TableHead className={thClass}>Kategorie</TableHead>
-        <TableHead className={thClass}>Status</TableHead>
-        <TableHead className={thClass}>Reduktion</TableHead>
-      </TableRow></TableHeader>
-      <TableBody>
-        {data.map((m) => (
-          <TableRow key={m.id}>
-            <TableCell className={`font-medium ${tdClass}`}>{m.name}</TableCell>
-            <TableCell className={tdMuted}>{m.category || "–"}</TableCell>
-            <TableCell><StatusBadge status={m.status} /></TableCell>
-            <TableCell className={tdMuted}>
-              {m.reduction_value != null ? `${m.reduction_value} ${m.reduction_unit || ""}`.trim() : "–"}
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <>
+      <TabToolbar>
+        <span className="text-[13px] font-medium">{data?.length ?? 0} Annahmen</span>
+        <Button size="sm" variant="outline" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Annahme hinzufügen
+        </Button>
+      </TabToolbar>
+      {isLoading ? <p className={tdMuted}>Lädt…</p> :
+       !data?.length ? <EmptyState icon={Lightbulb} title="Keine Annahmen erfasst" /> : (
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead className={thClass}>Titel</TableHead>
+            <TableHead className={thClass}>Konfidenz</TableHead>
+            <TableHead className={thClass}>Quelle</TableHead>
+            <TableHead className={thClass}>Erstellt</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {data.map((a) => (
+              <TableRow key={a.id}>
+                <TableCell className={`font-medium ${tdClass}`}>{a.title}</TableCell>
+                <TableCell className={tdMuted}>{a.confidence || "–"}</TableCell>
+                <TableCell className={tdMuted}>{a.source || "–"}</TableCell>
+                <TableCell className={tdMuted}>{format(new Date(a.created_at), "dd.MM.yyyy")}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <CreateAssumptionDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
+    </>
   );
 }
 
 function JustificationsTab({ projectId }: { projectId: string }) {
+  const [createOpen, setCreateOpen] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ["project-justifications", projectId],
     queryFn: async () => {
@@ -294,26 +362,35 @@ function JustificationsTab({ projectId }: { projectId: string }) {
     },
   });
 
-  if (isLoading) return <p className={tdMuted}>Lädt…</p>;
-  if (!data?.length) return <EmptyState icon={FileText} title="Keine Begründungen erfasst" />;
-
   return (
-    <Table>
-      <TableHeader><TableRow>
-        <TableHead className={thClass}>Titel</TableHead>
-        <TableHead className={thClass}>Typ</TableHead>
-        <TableHead className={thClass}>Erstellt</TableHead>
-      </TableRow></TableHeader>
-      <TableBody>
-        {data.map((j) => (
-          <TableRow key={j.id}>
-            <TableCell className={`font-medium ${tdClass}`}>{j.title}</TableCell>
-            <TableCell className={tdMuted}>{j.justification_type || "–"}</TableCell>
-            <TableCell className={tdMuted}>{format(new Date(j.created_at), "dd.MM.yyyy")}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <>
+      <TabToolbar>
+        <span className="text-[13px] font-medium">{data?.length ?? 0} Begründungen</span>
+        <Button size="sm" variant="outline" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Begründung hinzufügen
+        </Button>
+      </TabToolbar>
+      {isLoading ? <p className={tdMuted}>Lädt…</p> :
+       !data?.length ? <EmptyState icon={FileText} title="Keine Begründungen erfasst" /> : (
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead className={thClass}>Titel</TableHead>
+            <TableHead className={thClass}>Typ</TableHead>
+            <TableHead className={thClass}>Erstellt</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {data.map((j) => (
+              <TableRow key={j.id}>
+                <TableCell className={`font-medium ${tdClass}`}>{j.title}</TableCell>
+                <TableCell className={tdMuted}>{j.justification_type || "–"}</TableCell>
+                <TableCell className={tdMuted}>{format(new Date(j.created_at), "dd.MM.yyyy")}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <CreateJustificationDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
+    </>
   );
 }
 
