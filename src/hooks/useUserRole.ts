@@ -44,8 +44,8 @@ export function useUserRole(): UserRoleInfo {
   const isPlatformAdmin = roleList.includes("platform_admin");
   const isInternalUser =
     isPlatformAdmin ||
-    roleList.includes("studio_editor") ||
-    roleList.includes("studio_viewer");
+    roleList.includes("internal_pack_editor") ||
+    roleList.includes("internal_pack_reviewer");
 
   const visibleAreas: UserArea[] = ["customer"];
   if (isInternalUser) visibleAreas.push("studio");
