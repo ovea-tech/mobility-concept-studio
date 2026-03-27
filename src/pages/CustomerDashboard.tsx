@@ -84,9 +84,9 @@ export default function CustomerDashboard() {
           {[
             { label: "Entwurf", count: byStatus.draft.length, status: "draft" },
             { label: "Aktiv", count: byStatus.active.length, status: "active" },
-            { label: "In Prüfung", count: byStatus.in_review.length, status: "in_review" },
             { label: "Eingereicht", count: byStatus.submitted.length, status: "submitted" },
             { label: "Freigegeben", count: byStatus.approved.length, status: "approved" },
+            { label: "Archiviert", count: byStatus.archived.length, status: "archived" },
           ].map((s) => (
             <div key={s.status} className="border border-border rounded-md bg-card px-4 py-3">
               <div className="text-2xl font-semibold text-foreground">{s.count}</div>
