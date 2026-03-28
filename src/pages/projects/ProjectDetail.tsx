@@ -795,21 +795,29 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
                 </TableRow></TableHeader>
                 <TableBody>
                   {measures.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell className={`font-medium ${tdClass}`}>{m.name}</TableCell>
-                      <TableCell className={tdMuted}>{m.category || "–"}</TableCell>
-                      <TableCell className={`${tdMuted} tabular-nums`}>
-                        {m.reduction_value != null ? `${m.reduction_value} ${m.reduction_unit || ""}`.trim() : "–"}
-                      </TableCell>
-                      <TableCell><StatusBadge status={m.status} /></TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <ActionIcon icon={Pencil} onClick={() => setEditMeasure(m)} title="Bearbeiten" />
-                          <ActionIcon icon={Trash2} onClick={() => setDeleteMeasureId(m.id)} title="Löschen" variant="destructive" />
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <React.Fragment key={m.id}>
+                      <TableRow>
+                        <TableCell className={`font-medium ${tdClass}`}>{m.name}</TableCell>
+                        <TableCell className={tdMuted}>{m.category || "–"}</TableCell>
+                        <TableCell className={`${tdMuted} tabular-nums`}>
+                          {m.reduction_value != null ? `${m.reduction_value} ${m.reduction_unit || ""}`.trim() : "–"}
+                        </TableCell>
+                        <TableCell><StatusBadge status={m.status} /></TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <ActionIcon icon={Pencil} onClick={() => setEditMeasure(m)} title="Bearbeiten" />
+                            <ActionIcon icon={Trash2} onClick={() => setDeleteMeasureId(m.id)} title="Löschen" variant="destructive" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={5} className="pt-0 pb-1">
+                          <EvidenceSection measureId={m.id} projectId={projectId} />
+                        </TableCell>
+                      </TableRow>
+                    </React.Fragment>
                   ))}
+
                 </TableBody>
               </Table>
             )}
