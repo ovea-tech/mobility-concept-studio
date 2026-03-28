@@ -307,22 +307,23 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
                   <TableRow key={row.id}>
                     <TableCell className={`${tdClass} font-medium`}>{row.name}</TableCell>
                     <TableCell>
-                      <Select
+                      <select
                         value={row.housing_type_code ?? ""}
-                        onValueChange={(code) => setHousingTypeMutation.mutate({ useTypeId: row.id, code })}
+                        onChange={(e) => {
+                          if (!isLocked && e.target.value) {
+                            setHousingTypeMutation.mutate({ useTypeId: row.id, code: e.target.value });
+                          }
+                        }}
                         disabled={isLocked}
+                        className="h-7 w-44 text-[12px] border border-input rounded-md bg-background px-2 text-foreground disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-ring"
                       >
-                        <SelectTrigger className="h-7 w-40 text-[12px]">
-                          <SelectValue placeholder="Auswählen…" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {benchmarks.map((b) => (
-                            <SelectItem key={String(b.code)} value={String(b.code)} className="text-[12px]">
-                              {String(b.label)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                        <option value="">Auswählen…</option>
+                        {benchmarks.map((b) => (
+                          <option key={String(b.code)} value={String(b.code)}>
+                            {String(b.label)}
+                          </option>
+                        ))}
+                      </select>
                     </TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums`}>{row.unit_count ?? 0}</TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums`}>
