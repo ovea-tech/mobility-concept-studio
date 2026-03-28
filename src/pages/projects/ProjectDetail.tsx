@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { CalculatorTab } from "@/components/project/CalculatorTab";
 import { ComplianceTab } from "@/components/project/ComplianceTab";
+import { FormblattViewer } from "@/components/project/FormblattViewer";
 
 /* ── shared styles ── */
 const tabClass =
@@ -244,7 +245,7 @@ export default function ProjectDetail() {
           <TabsContent value="concepts" className="p-6 mt-0"><ConceptsTab projectId={project.id} /></TabsContent>
           <TabsContent value="scenarios" className="p-6 mt-0"><ScenariosTab projectId={project.id} /></TabsContent>
           <TabsContent value="monitoring" className="p-6 mt-0"><MonitoringTab projectId={project.id} /></TabsContent>
-          <TabsContent value="documents" className="p-6 mt-0"><DocumentsTab /></TabsContent>
+          <TabsContent value="documents" className="p-6 mt-0"><DocumentsTab projectId={project.id} project={project} /></TabsContent>
         </div>
       </Tabs>
 
@@ -1191,10 +1192,104 @@ function MonitoringTab({ projectId }: { projectId: string }) {
 /* ══════════════════════════════════════════════
    DOCUMENTS TAB
    ══════════════════════════════════════════════ */
-function DocumentsTab() {
+function DocumentsTab({ projectId, project }: { projectId: string; project: any }) {
+  const [showFormblatt, setShowFormblatt] = useState(false);
+
+  const { data: useTypes } = useQuery({
+    queryKey: ["use_types_doc", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("use_types").select("*").eq("project_id", projectId).order("created_at");
+      return data ?? [];
+    },
+  });
+
+  const { data: sites } = useQuery({
+    queryKey: ["project-sites-doc", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("project_sites").select("*").eq("project_id", projectId);
+      return data ?? [];
+    },
+  });
+
+  const { data: measures } = useQuery({
+    queryKey: ["measures_doc", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("measures").select("*").eq("project_id", projectId);
+      return data ?? [];
+    },
+  });
+
+  const { data: outputPackages, isLoading: opLoading } = useQuery({
+    queryKey: ["output_packages", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("output_packages").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const canGenerateFormblatt = project?.status === "submitted" || project?.status === "approved";
+
+  if (showFormblatt) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background">
+        <FormblattViewer
+          project={project}
+          useTypes={useTypes ?? []}
+          sites={sites ?? []}
+          measures={measures ?? []}
+          onClose={() => setShowFormblatt(false)}
+        />
+      </div>
+    );
+  }
+
   return (
-    <EmptyState icon={FileText} title="Dokumente"
-      description="Dokumenten-Upload und -Verwaltung folgt in einem späteren Sprint." />
+    <div className="space-y-6">
+      <TabToolbar label="Dokumente & Formulare">
+        <Button
+          size="sm"
+          className="h-8 text-[13px]"
+          disabled={!canGenerateFormblatt}
+          onClick={() => setShowFormblatt(true)}
+          title={!canGenerateFormblatt ? "Erst Konzept finalisieren" : undefined}
+        >
+          <FileText className="h-3.5 w-3.5 mr-1.5" /> Formblatt vorbereiten
+        </Button>
+      </TabToolbar>
+
+      {!canGenerateFormblatt && (
+        <div className="rounded-md border border-border bg-muted/30 p-3">
+          <p className="text-[12px] text-muted-foreground">
+            Das LBK-Formblatt kann erst nach Finalisierung des Konzepts erstellt werden.
+          </p>
+        </div>
+      )}
+
+      <div>
+        <h3 className="text-[13px] font-medium text-foreground mb-3">Erzeugte Dokumente</h3>
+        {opLoading ? <LoadingSkeleton rows={2} /> :
+         !outputPackages?.length ? (
+          <p className="text-[12px] text-muted-foreground">Noch keine Dokumente erzeugt.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead className={thClass}>Dateiname</TableHead>
+              <TableHead className={thClass}>Typ</TableHead>
+              <TableHead className={thClass}>Erstellt am</TableHead>
+            </TableRow></TableHeader>
+            <TableBody>
+              {outputPackages.map((op) => (
+                <TableRow key={op.id}>
+                  <TableCell className={`${tdClass} font-mono`}>{op.file_name ?? op.name}</TableCell>
+                  <TableCell className={tdMuted}>{op.package_type ?? "–"}</TableCell>
+                  <TableCell className={tdMuted}>{format(new Date(op.created_at), "dd.MM.yyyy HH:mm")}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+    </div>
   );
 }
 
