@@ -103,7 +103,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editProjectOpen, setEditProjectOpen] = useState(false);
-
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
@@ -198,7 +198,9 @@ export default function ProjectDetail() {
             </div>
           </div>
           {transition && (
-            <Button size="sm" className="h-8 text-[13px]" onClick={() => statusMutation.mutate(transition.next)} disabled={statusMutation.isPending}>
+            <Button size="sm" className={`h-8 text-[13px] ${transition.next === 'submitted' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}`}
+              onClick={() => transition.next === 'submitted' ? setSubmitConfirmOpen(true) : statusMutation.mutate(transition.next)}
+              disabled={statusMutation.isPending}>
               {statusMutation.isPending ? "…" : transition.label}
             </Button>
           )}
