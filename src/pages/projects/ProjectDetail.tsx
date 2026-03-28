@@ -34,6 +34,8 @@ import {
   AlertCircle, Beaker, Target, Pencil, Trash2, Scale, BookOpen,
   BarChart3, Upload, Paperclip,
 } from "lucide-react";
+import { CalculatorTab } from "@/components/project/CalculatorTab";
+import { ComplianceTab } from "@/components/project/ComplianceTab";
 
 /* ── shared styles ── */
 const tabClass =
@@ -213,6 +215,8 @@ export default function ProjectDetail() {
           <TabsList className="bg-transparent h-auto p-0 gap-0 flex-nowrap">
             <TabsTrigger value="overview" className={tabClass}>Übersicht</TabsTrigger>
             <TabsTrigger value="usetypes" className={tabClass}>Nutzungen & Bilanz</TabsTrigger>
+            <TabsTrigger value="calculator" className={tabClass}>Kalkulator</TabsTrigger>
+            <TabsTrigger value="compliance" className={tabClass}>Nachweisführung</TabsTrigger>
             <TabsTrigger value="concepts" className={tabClass}>Konzepte</TabsTrigger>
             <TabsTrigger value="scenarios" className={tabClass}>Szenarien & Maßnahmen</TabsTrigger>
             <TabsTrigger value="monitoring" className={tabClass}>Monitoring</TabsTrigger>
@@ -223,6 +227,8 @@ export default function ProjectDetail() {
         <div className="flex-1 overflow-auto">
           <TabsContent value="overview" className="p-6 mt-0"><OverviewTab projectId={project.id} /></TabsContent>
           <TabsContent value="usetypes" className="p-6 mt-0"><UseTypesTab projectId={project.id} /></TabsContent>
+          <TabsContent value="calculator" className="p-6 mt-0"><CalculatorTab projectId={project.id} project={project} /></TabsContent>
+          <TabsContent value="compliance" className="p-6 mt-0"><ComplianceTab projectId={project.id} project={project} /></TabsContent>
           <TabsContent value="concepts" className="p-6 mt-0"><ConceptsTab projectId={project.id} /></TabsContent>
           <TabsContent value="scenarios" className="p-6 mt-0"><ScenariosTab projectId={project.id} /></TabsContent>
           <TabsContent value="monitoring" className="p-6 mt-0"><MonitoringTab projectId={project.id} /></TabsContent>

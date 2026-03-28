@@ -24,6 +24,7 @@ import { CreateRuleSetDialog } from "@/components/dialogs/CreateRuleSetDialog";
 import { CreateReviewDialog } from "@/components/dialogs/CreateReviewDialog";
 import { CreateTestCaseDialog } from "@/components/dialogs/CreateTestCaseDialog";
 import { CreateReleaseDialog } from "@/components/dialogs/CreateReleaseDialog";
+import { RulesetViewer } from "@/components/studio/RulesetViewer";
 
 const tabClass =
   "rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 pb-2 pt-1.5 text-[13px] font-normal data-[state=active]:font-medium";
@@ -124,6 +125,7 @@ export default function PackDetail() {
 
         <TabsContent value="overview" className="p-6 mt-0">
           <PackOverviewTab packVersionId={activeVersionId} municipalityId={municipalityId} versions={versions} />
+          <div className="mt-6"><RulesetViewer packVersionId={activeVersionId} /></div>
         </TabsContent>
         <TabsContent value="versions" className="p-6 mt-0">
           <VersionsTab packId={pack.id} versions={versions} />
