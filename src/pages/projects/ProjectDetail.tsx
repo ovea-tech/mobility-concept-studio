@@ -438,6 +438,9 @@ function OverviewTab({ projectId }: { projectId: string }) {
         )}
       </div>
 
+      {/* Submission Snapshots */}
+      <SnapshotsSection projectId={projectId} />
+
       <CreateSiteDialog open={createSiteOpen} onOpenChange={setCreateSiteOpen} projectId={projectId} />
       {editSite && <EditSiteDialog open={!!editSite} onOpenChange={(v) => !v && setEditSite(null)} site={editSite} projectId={projectId} />}
       <DeleteConfirm open={!!deleteSiteId} onOpenChange={(v) => !v && setDeleteSiteId(null)} title="Standort löschen?" description="Dieser Standort wird unwiderruflich gelöscht." onConfirm={() => deleteSiteId && deleteSiteMutation.mutate(deleteSiteId)} isPending={deleteSiteMutation.isPending} />
