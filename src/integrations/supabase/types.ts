@@ -128,7 +128,7 @@ export type Database = {
           ip_address: unknown
           metadata: Json | null
           organization_id: string | null
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           action: Database["public"]["Enums"]["audit_action"]
@@ -139,7 +139,7 @@ export type Database = {
           ip_address?: unknown
           metadata?: Json | null
           organization_id?: string | null
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           action?: Database["public"]["Enums"]["audit_action"]
@@ -150,7 +150,7 @@ export type Database = {
           ip_address?: unknown
           metadata?: Json | null
           organization_id?: string | null
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
