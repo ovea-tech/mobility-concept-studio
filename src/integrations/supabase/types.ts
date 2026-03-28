@@ -472,6 +472,7 @@ export type Database = {
           pack_id: string
           published_at: string | null
           published_by: string | null
+          ruleset: Json | null
           status: Database["public"]["Enums"]["pack_status"]
           updated_at: string
           version_label: string | null
@@ -485,6 +486,7 @@ export type Database = {
           pack_id: string
           published_at?: string | null
           published_by?: string | null
+          ruleset?: Json | null
           status?: Database["public"]["Enums"]["pack_status"]
           updated_at?: string
           version_label?: string | null
@@ -498,6 +500,7 @@ export type Database = {
           pack_id?: string
           published_at?: string | null
           published_by?: string | null
+          ruleset?: Json | null
           status?: Database["public"]["Enums"]["pack_status"]
           updated_at?: string
           version_label?: string | null
@@ -1320,8 +1323,13 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          erected_parking_spaces: number | null
           id: string
           jurisdiction_pack_version_id: string
+          mf_calculated_at: string | null
+          mf_calculated_by: string | null
+          mf_calculation_locked: boolean
+          mobility_factor: number | null
           name: string
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
@@ -1331,8 +1339,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          erected_parking_spaces?: number | null
           id?: string
           jurisdiction_pack_version_id: string
+          mf_calculated_at?: string | null
+          mf_calculated_by?: string | null
+          mf_calculation_locked?: boolean
+          mobility_factor?: number | null
           name: string
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
@@ -1342,8 +1355,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          erected_parking_spaces?: number | null
           id?: string
           jurisdiction_pack_version_id?: string
+          mf_calculated_at?: string | null
+          mf_calculated_by?: string | null
+          mf_calculation_locked?: boolean
+          mobility_factor?: number | null
           name?: string
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
