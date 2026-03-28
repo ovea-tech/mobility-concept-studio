@@ -1,22 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
-  FolderKanban, Plus, ClipboardList, Send, FileText, Target,
+  FolderKanban, Plus, ClipboardList, AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 
 export default function CustomerDashboard() {
-  const navigate = useNavigate();
-
-  const { data: projects } = useQuery({
+  const { data: projects, isLoading: projectsLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("projects")
-        .select("*")
+        .select("id, name, status, created_at, updated_at")
         .order("updated_at", { ascending: false })
         .limit(20);
       if (error) throw error;
@@ -24,40 +23,26 @@ export default function CustomerDashboard() {
     },
   });
 
-  const { data: monitoringItems } = useQuery({
+  const { data: monitoringItems, isLoading: monLoading } = useQuery({
     queryKey: ["dashboard-monitoring"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("monitoring_items")
-        .select("*, projects(name)")
+        .select("id, title, due_date, status, project_id, projects(name)")
         .in("status", ["pending", "in_progress"])
         .order("due_date", { ascending: true })
-        .limit(10);
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: recentMeasures } = useQuery({
-    queryKey: ["dashboard-measures"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("measures")
-        .select("*, projects(name)")
-        .order("updated_at", { ascending: false })
-        .limit(8);
+        .limit(5);
       if (error) throw error;
       return data;
     },
   });
 
   const allProjects = projects ?? [];
-  const byStatus = {
-    draft: allProjects.filter((p) => p.status === "draft"),
-    active: allProjects.filter((p) => p.status === "active"),
-    submitted: allProjects.filter((p) => p.status === "submitted"),
-    approved: allProjects.filter((p) => p.status === "approved"),
-    archived: allProjects.filter((p) => p.status === "archived"),
+  const counts = {
+    draft: allProjects.filter((p) => p.status === "draft").length,
+    active: allProjects.filter((p) => p.status === "active").length,
+    in_review: allProjects.filter((p) => p.status === "in_review" || p.status === "submitted").length,
+    approved: allProjects.filter((p) => p.status === "approved").length,
   };
 
   return (
@@ -69,27 +54,30 @@ export default function CustomerDashboard() {
             <h1 className="text-lg font-semibold text-foreground">Arbeitsbereich</h1>
             <p className="text-[13px] text-muted-foreground mt-0.5">Projektübersicht und offene Aufgaben</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" className="h-8 text-[13px]" onClick={() => navigate("/projects/new")}>
+          <Link to="/projects/new">
+            <Button size="sm" className="h-8 text-[13px]">
               <Plus className="h-3.5 w-3.5 mr-1" />
               Neues Projekt
             </Button>
-          </div>
+          </Link>
         </div>
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Status summary */}
-        <div className="grid grid-cols-5 gap-3">
+        {/* Stat cards */}
+        <div className="grid grid-cols-4 gap-3">
           {[
-            { label: "Entwurf", count: byStatus.draft.length, status: "draft" },
-            { label: "Aktiv", count: byStatus.active.length, status: "active" },
-            { label: "Eingereicht", count: byStatus.submitted.length, status: "submitted" },
-            { label: "Freigegeben", count: byStatus.approved.length, status: "approved" },
-            { label: "Archiviert", count: byStatus.archived.length, status: "archived" },
+            { label: "Entwurf", count: counts.draft },
+            { label: "Aktiv", count: counts.active },
+            { label: "In Prüfung", count: counts.in_review },
+            { label: "Freigegeben", count: counts.approved },
           ].map((s) => (
-            <div key={s.status} className="border border-border rounded-md bg-card px-4 py-3">
-              <div className="text-2xl font-semibold text-foreground">{s.count}</div>
+            <div key={s.label} className="border border-border rounded-md bg-card px-4 py-3">
+              {projectsLoading ? (
+                <Skeleton className="h-8 w-12" />
+              ) : (
+                <div className="text-2xl font-semibold text-foreground">{s.count}</div>
+              )}
               <div className="text-[12px] text-muted-foreground mt-0.5">{s.label}</div>
             </div>
           ))}
@@ -98,9 +86,19 @@ export default function CustomerDashboard() {
         <div className="grid grid-cols-3 gap-6">
           {/* Recent projects */}
           <div className="col-span-2">
-            <SectionHeader icon={FolderKanban} title="Zuletzt bearbeitete Projekte" />
+            <SectionHeader icon={FolderKanban} title="Aktuelle Projekte" />
             <div className="border border-border rounded-md bg-card overflow-hidden">
-              {allProjects.length === 0 ? (
+              {projectsLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="flex gap-4">
+                      <Skeleton className="h-4 w-1/3" />
+                      <Skeleton className="h-4 w-16" />
+                      <Skeleton className="h-4 w-20" />
+                    </div>
+                  ))}
+                </div>
+              ) : !allProjects.length ? (
                 <div className="px-4 py-8 text-center text-[13px] text-muted-foreground">
                   Keine Projekte vorhanden.
                 </div>
@@ -114,13 +112,13 @@ export default function CustomerDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allProjects.slice(0, 8).map((p) => (
-                      <tr
-                        key={p.id}
-                        className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
-                        onClick={() => navigate(`/projects/${p.id}`)}
-                      >
-                        <td className="px-4 py-2.5 font-medium">{p.name}</td>
+                    {allProjects.slice(0, 5).map((p) => (
+                      <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-2.5 font-medium">
+                          <Link to={`/projects/${p.id}`} className="text-primary hover:underline">
+                            {p.name}
+                          </Link>
+                        </td>
                         <td className="px-4 py-2.5"><StatusBadge status={p.status} /></td>
                         <td className="px-4 py-2.5 text-muted-foreground text-[12px]">
                           {format(new Date(p.updated_at), "dd.MM.yyyy")}
@@ -133,64 +131,43 @@ export default function CustomerDashboard() {
             </div>
           </div>
 
-          {/* Right column: monitoring + quick actions */}
+          {/* Right column */}
           <div className="space-y-6">
-            {/* Quick actions */}
             <div>
-              <SectionHeader icon={Target} title="Schnellaktionen" />
-              <div className="space-y-1.5">
-                <QuickAction label="Projekt anlegen" onClick={() => navigate("/projects/new")} />
-                <QuickAction label="Alle Projekte" onClick={() => navigate("/projects")} />
-              </div>
-            </div>
-
-            {/* Monitoring */}
-            <div>
-              <SectionHeader icon={ClipboardList} title="Offene Monitoring-Fristen" />
+              <SectionHeader icon={ClipboardList} title="Offene Nachweise" />
               <div className="border border-border rounded-md bg-card overflow-hidden">
-                {!monitoringItems?.length ? (
+                {monLoading ? (
+                  <div className="p-4 space-y-3">
+                    {Array.from({ length: 3 }).map((_, i) => (
+                      <Skeleton key={i} className="h-10 w-full" />
+                    ))}
+                  </div>
+                ) : !monitoringItems?.length ? (
                   <div className="px-4 py-6 text-center text-[13px] text-muted-foreground">
                     Keine offenen Fristen.
                   </div>
                 ) : (
                   <div className="divide-y divide-border">
-                    {monitoringItems.map((m) => (
-                      <div key={m.id} className="px-4 py-2.5">
-                        <div className="text-[13px] font-medium">{m.title}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <StatusBadge status={m.status} />
-                          {m.due_date && (
-                            <span className="text-[11px] text-muted-foreground">
-                              Fällig {format(new Date(m.due_date), "dd.MM.yyyy")}
-                            </span>
-                          )}
+                    {monitoringItems.map((m) => {
+                      const proj = m.projects as any;
+                      const isOverdue = m.due_date && new Date(m.due_date) < new Date();
+                      return (
+                        <div key={m.id} className="px-4 py-2.5">
+                          <div className="text-[13px] font-medium">{m.title}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <StatusBadge status={isOverdue ? "overdue" : m.status} />
+                            {proj?.name && (
+                              <span className="text-[11px] text-muted-foreground">{proj.name}</span>
+                            )}
+                            {m.due_date && (
+                              <span className="text-[11px] text-muted-foreground">
+                                · Fällig {format(new Date(m.due_date), "dd.MM.yyyy")}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Recent measures */}
-            <div>
-              <SectionHeader icon={Target} title="Letzte Maßnahmen" />
-              <div className="border border-border rounded-md bg-card overflow-hidden">
-                {!recentMeasures?.length ? (
-                  <div className="px-4 py-6 text-center text-[13px] text-muted-foreground">
-                    Keine Maßnahmen vorhanden.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-border">
-                    {recentMeasures.slice(0, 5).map((m) => (
-                      <div key={m.id} className="px-4 py-2.5">
-                        <div className="text-[13px] font-medium">{m.name}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <StatusBadge status={m.status} />
-                          <span className="text-[11px] text-muted-foreground">{m.category || ""}</span>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -208,17 +185,5 @@ function SectionHeader({ icon: Icon, title }: { icon: any; title: string }) {
       <Icon className="h-4 w-4 text-muted-foreground" />
       <h2 className="text-[13px] font-semibold text-foreground">{title}</h2>
     </div>
-  );
-}
-
-function QuickAction({ label, onClick }: { label: string; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left rounded-md border border-border bg-card hover:bg-muted/50 transition-colors"
-    >
-      <Plus className="h-3.5 w-3.5 text-muted-foreground" />
-      {label}
-    </button>
   );
 }

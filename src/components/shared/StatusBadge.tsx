@@ -14,6 +14,11 @@ const statusConfig: Record<string, { label: string; variant: string }> = {
   candidate: { label: "Kandidat", variant: "bg-muted text-muted-foreground" },
   proposed: { label: "Vorgeschlagen", variant: "bg-muted text-muted-foreground" },
   retired: { label: "Archiviert", variant: "bg-muted text-muted-foreground" },
+  archived: { label: "Archiviert", variant: "bg-muted text-muted-foreground" },
+  in_progress: { label: "In Bearbeitung", variant: "bg-primary/10 text-primary" },
+  on_track: { label: "Im Plan", variant: "bg-emerald-500/10 text-emerald-700" },
+  at_risk: { label: "Gefährdet", variant: "bg-amber-500/10 text-amber-700" },
+  accepted: { label: "Akzeptiert", variant: "bg-emerald-500/10 text-emerald-700" },
 };
 
 interface StatusBadgeProps {
