@@ -36,7 +36,14 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
   const ruleset = packVersionData?.ruleset as any;
   const rulesetLoading = false;
   const engineType = ruleset?.calculation_engine?.type;
-  const benchmarks: any[] = ruleset?.calculation_engine?.residential_benchmarks ?? [];
+  const rawBenchmarks = ruleset?.calculation_engine?.residential_benchmarks ?? [];
+  const benchmarks: Array<{code: string; label: string; rate: number; included_in_mf: boolean}> =
+    (Array.isArray(rawBenchmarks) ? rawBenchmarks : []).map((b: any) => ({
+      code:           String(b?.code  ?? ''),
+      label:          String(b?.label ?? ''),
+      rate:           parseFloat(String(b?.rate ?? 0)),
+      included_in_mf: b?.included_in_mf !== false && b?.included_in_mf !== 'false',
+    })).filter(b => b.code !== '');
 
   /* ── Nutzungsarten ── */
   const { data: useTypes } = useQuery({
@@ -81,7 +88,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       return {
         ...ut,
         housing_type_code: htCode,
-        housing_type_label: benchmark?.label ?? htCode ?? "–",
+        housing_type_label: String(benchmark?.label ?? htCode ?? '–'),
         rate,
         requiredSpaces,
         includedInMf,
@@ -309,7 +316,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
                           <SelectValue placeholder="Auswählen…" />
                         </SelectTrigger>
                         <SelectContent>
-                          {benchmarks.map((b: any) => (
+                          {benchmarks.map((b) => (
                             <SelectItem key={b.code} value={b.code} className="text-[12px]">
                               {b.label}
                             </SelectItem>
