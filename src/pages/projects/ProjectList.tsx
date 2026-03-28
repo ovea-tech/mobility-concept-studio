@@ -125,10 +125,13 @@ export default function ProjectList() {
                 return (
                   <TableRow
                     key={project.id}
-                    className="cursor-pointer hover:bg-muted/50"
-                    onClick={() => navigate(`/projects/${project.id}`)}
+                    className="hover:bg-muted/50"
                   >
-                    <TableCell className="font-medium text-[13px]">{project.name}</TableCell>
+                    <TableCell className="font-medium text-[13px]">
+                      <Link to={`/projects/${project.id}`} className="text-primary hover:underline">
+                        {project.name}
+                      </Link>
+                    </TableCell>
                     <TableCell className="text-muted-foreground text-[12px]">{muniName}</TableCell>
                     <TableCell className="text-muted-foreground text-[12px]">{packName}</TableCell>
                     <TableCell><StatusBadge status={project.status} /></TableCell>
