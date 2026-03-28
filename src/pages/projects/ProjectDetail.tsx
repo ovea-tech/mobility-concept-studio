@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,7 +32,7 @@ import {
   MapPin, Lightbulb, ChevronLeft, ChevronDown, ChevronRight,
   Plus, ClipboardList, FileText, Calendar, Building2, Package,
   AlertCircle, Beaker, Target, Pencil, Trash2, Scale, BookOpen,
-  BarChart3,
+  BarChart3, Upload, Paperclip,
 } from "lucide-react";
 
 /* ── shared styles ── */
@@ -232,24 +232,12 @@ export default function ProjectDetail() {
 
       <EditProjectDialog open={editProjectOpen} onOpenChange={setEditProjectOpen} project={project} />
 
-      {/* Submission Confirmation */}
-      <AlertDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[15px]">Projekt wirklich einreichen?</AlertDialogTitle>
-            <AlertDialogDescription className="text-[13px]">
-              Nach der Einreichung kann das Konzept nicht mehr bearbeitet werden. Bitte bestätigen Sie die Vollständigkeit aller Unterlagen.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { statusMutation.mutate("submitted"); setSubmitConfirmOpen(false); }}
-              disabled={statusMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[13px]">
-              {statusMutation.isPending ? "Wird eingereicht…" : "Jetzt einreichen"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <SubmitConfirmDialog
+        open={submitConfirmOpen}
+        onOpenChange={setSubmitConfirmOpen}
+        projectId={project.id}
+        statusMutation={statusMutation}
+      />
     </div>
   );
 }
@@ -449,6 +437,9 @@ function OverviewTab({ projectId }: { projectId: string }) {
           </Table>
         )}
       </div>
+
+      {/* Submission Snapshots */}
+      <SnapshotsSection projectId={projectId} />
 
       <CreateSiteDialog open={createSiteOpen} onOpenChange={setCreateSiteOpen} projectId={projectId} />
       {editSite && <EditSiteDialog open={!!editSite} onOpenChange={(v) => !v && setEditSite(null)} site={editSite} projectId={projectId} />}
@@ -804,21 +795,29 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
                 </TableRow></TableHeader>
                 <TableBody>
                   {measures.map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell className={`font-medium ${tdClass}`}>{m.name}</TableCell>
-                      <TableCell className={tdMuted}>{m.category || "–"}</TableCell>
-                      <TableCell className={`${tdMuted} tabular-nums`}>
-                        {m.reduction_value != null ? `${m.reduction_value} ${m.reduction_unit || ""}`.trim() : "–"}
-                      </TableCell>
-                      <TableCell><StatusBadge status={m.status} /></TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <ActionIcon icon={Pencil} onClick={() => setEditMeasure(m)} title="Bearbeiten" />
-                          <ActionIcon icon={Trash2} onClick={() => setDeleteMeasureId(m.id)} title="Löschen" variant="destructive" />
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                    <React.Fragment key={m.id}>
+                      <TableRow>
+                        <TableCell className={`font-medium ${tdClass}`}>{m.name}</TableCell>
+                        <TableCell className={tdMuted}>{m.category || "–"}</TableCell>
+                        <TableCell className={`${tdMuted} tabular-nums`}>
+                          {m.reduction_value != null ? `${m.reduction_value} ${m.reduction_unit || ""}`.trim() : "–"}
+                        </TableCell>
+                        <TableCell><StatusBadge status={m.status} /></TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <ActionIcon icon={Pencil} onClick={() => setEditMeasure(m)} title="Bearbeiten" />
+                            <ActionIcon icon={Trash2} onClick={() => setDeleteMeasureId(m.id)} title="Löschen" variant="destructive" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                      <TableRow className="hover:bg-transparent">
+                        <TableCell colSpan={5} className="pt-0 pb-1">
+                          <EvidenceSection measureId={m.id} projectId={projectId} />
+                        </TableCell>
+                      </TableRow>
+                    </React.Fragment>
                   ))}
+
                 </TableBody>
               </Table>
             )}
@@ -1854,5 +1853,240 @@ function EditUseTypeDialog({ open, onOpenChange, item, projectId }: { open: bool
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   SUBMIT CONFIRM DIALOG (creates snapshot)
+   ══════════════════════════════════════════════ */
+function SubmitConfirmDialog({ open, onOpenChange, projectId, statusMutation }: {
+  open: boolean; onOpenChange: (v: boolean) => void; projectId: string; statusMutation: any;
+}) {
+  const queryClient = useQueryClient();
+  const [isPending, setIsPending] = useState(false);
+
+  const handleSubmit = async () => {
+    setIsPending(true);
+    try {
+      const { error: statusErr } = await supabase.from("projects").update({ status: "submitted" as any }).eq("id", projectId);
+      if (statusErr) throw statusErr;
+
+      const [sitesRes, conceptsRes, scenariosRes, projectRes] = await Promise.all([
+        supabase.from("project_sites").select("*").eq("project_id", projectId),
+        supabase.from("mobility_concepts").select("*").eq("project_id", projectId),
+        supabase.from("scenarios").select("*").eq("project_id", projectId),
+        supabase.from("projects").select("*").eq("id", projectId).maybeSingle(),
+      ]);
+
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session.session?.user?.id ?? null;
+
+      const { error: snapErr } = await supabase.from("submission_snapshots").insert({
+        project_id: projectId,
+        version_label: "v" + new Date().toISOString().slice(0, 10),
+        snapshot_data: {
+          project: projectRes.data,
+          sites: sitesRes.data ?? [],
+          concepts: conceptsRes.data ?? [],
+          scenarios: scenariosRes.data ?? [],
+        },
+        submitted_by: userId,
+        submitted_at: new Date().toISOString(),
+      });
+      if (snapErr) throw snapErr;
+
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["submission-snapshots", projectId] });
+      toast.success("Projekt eingereicht – Snapshot erstellt");
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-[15px]">Projekt wirklich einreichen?</AlertDialogTitle>
+          <AlertDialogDescription className="text-[13px]">
+            Nach der Einreichung kann das Konzept nicht mehr bearbeitet werden. Bitte bestätigen Sie die Vollständigkeit aller Unterlagen.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
+          <AlertDialogAction onClick={handleSubmit} disabled={isPending}
+            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[13px]">
+            {isPending ? "Wird eingereicht…" : "Jetzt einreichen"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   SNAPSHOTS SECTION (in Overview tab)
+   ══════════════════════════════════════════════ */
+function SnapshotsSection({ projectId }: { projectId: string }) {
+  const { data: snapshots, isLoading } = useQuery({
+    queryKey: ["submission-snapshots", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("submission_snapshots").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  return (
+    <div>
+      <TabToolbar label="Einreichungen" count={snapshots?.length} />
+      {isLoading ? <LoadingSkeleton rows={2} /> :
+       !snapshots?.length ? (
+        <p className="text-[13px] text-muted-foreground">Noch keine Einreichungen. Nach der Einreichung wird hier ein revisionssicherer Snapshot gespeichert.</p>
+      ) : (
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead className={thClass}>Version</TableHead>
+            <TableHead className={thClass}>Eingereicht am</TableHead>
+            <TableHead className={thClass}>Status</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>
+            {snapshots.map((s) => (
+              <TableRow key={s.id}>
+                <TableCell className={`font-medium ${tdClass} font-mono`}>{s.version_label}</TableCell>
+                <TableCell className={tdMuted}>{s.submitted_at ? format(new Date(s.submitted_at), "dd.MM.yyyy HH:mm") : "–"}</TableCell>
+                <TableCell><Badge variant="secondary" className="text-[10px]">Eingereicht</Badge></TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   EVIDENCE ARTIFACTS SECTION
+   ══════════════════════════════════════════════ */
+function EvidenceSection({ measureId, projectId }: { measureId: string; projectId: string }) {
+  const queryClient = useQueryClient();
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [artifactType, setArtifactType] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [filePath, setFilePath] = useState("");
+
+  const { data: artifacts } = useQuery({
+    queryKey: ["evidence_artifacts", measureId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("evidence_artifacts").select("*").eq("measure_id", measureId).order("created_at");
+      if (error) throw error;
+      return data;
+    },
+    enabled: sectionOpen,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { data: session } = await supabase.auth.getSession();
+      const { error } = await supabase.from("evidence_artifacts").insert({
+        project_id: projectId,
+        measure_id: measureId,
+        name: name.trim(),
+        artifact_type: artifactType || null,
+        file_name: fileName.trim(),
+        file_path: filePath.trim() || fileName.trim(),
+        uploaded_by: session.session?.user?.id ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evidence_artifacts", measureId] });
+      toast.success("Nachweis wurde erfasst");
+      setCreateOpen(false);
+      setName(""); setArtifactType(""); setFileName(""); setFilePath("");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Collapsible open={sectionOpen} onOpenChange={setSectionOpen}>
+      <div className="mt-1">
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center gap-2 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+            {sectionOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            <Paperclip className="h-3 w-3" />
+            Nachweise ({artifacts?.length ?? 0})
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-1.5 ml-5 space-y-1.5">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" className="h-6 text-[11px] px-2" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-2.5 w-2.5 mr-0.5" /> Nachweis
+              </Button>
+            </div>
+            {!artifacts?.length ? (
+              <p className="text-[11px] text-muted-foreground py-0.5">Keine Nachweise hinterlegt.</p>
+            ) : (
+              <div className="space-y-1">
+                {artifacts.map((a) => (
+                  <div key={a.id} className="bg-muted/30 rounded px-2.5 py-1.5 text-[11px] flex items-center gap-3">
+                    <span className="font-medium text-foreground">{a.name}</span>
+                    {a.artifact_type && <span className="text-muted-foreground">{a.artifact_type}</span>}
+                    <span className="text-muted-foreground font-mono">{a.file_name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader><DialogTitle className="text-[15px]">Nachweis erfassen</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Bezeichnung *</Label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Carsharing-Vertrag" className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Typ</Label>
+                  <Select value={artifactType} onValueChange={setArtifactType}>
+                    <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Wählen…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Vertrag">Vertrag</SelectItem>
+                      <SelectItem value="Foto">Foto</SelectItem>
+                      <SelectItem value="Zertifikat">Zertifikat</SelectItem>
+                      <SelectItem value="Behördennachweis">Behördennachweis</SelectItem>
+                      <SelectItem value="Sonstiges">Sonstiges</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Dateiname / URL *</Label>
+                  <Input value={fileName} onChange={(e) => setFileName(e.target.value)} placeholder="z. B. vertrag_carsharing.pdf" className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Speicherort / Pfad</Label>
+                  <Input value={filePath} onChange={(e) => setFilePath(e.target.value)} placeholder="Optional" className="h-9 text-[13px]" />
+                </div>
+                <p className="text-[11px] text-muted-foreground">Datei-Upload kommt in der nächsten Version. Bitte erfassen Sie den Dateinamen und Speicherort.</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)} className="text-[13px]">Abbrechen</Button>
+                <Button size="sm" onClick={() => createMutation.mutate()} disabled={!name.trim() || !fileName.trim() || createMutation.isPending} className="text-[13px]">
+                  {createMutation.isPending ? "Erfasst…" : "Erfassen"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
   );
 }

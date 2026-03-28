@@ -20,6 +20,7 @@ import PackDetail from "./pages/studio/PackDetail";
 import OrganizationList from "./pages/admin/OrganizationList";
 import AuditLog from "./pages/admin/AuditLog";
 import PlaceholderPage from "./pages/PlaceholderPage";
+import ProfilePage from "./pages/ProfilePage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -68,6 +69,9 @@ const App = () => (
             <Route path="/admin/users" element={<PlaceholderPage title="Benutzer" description="Benutzerverwaltung" />} />
             <Route path="/admin/roles" element={<PlaceholderPage title="Rollen" description="Plattform-Rollenverwaltung" />} />
             <Route path="/admin/audit" element={<AuditLog />} />
+
+            {/* Profile */}
+            <Route path="/profile" element={<ProfilePage />} />
           </Route>
 
           <Route path="*" element={<NotFound />} />
