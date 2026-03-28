@@ -823,7 +823,20 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
               </Table>
             )}
 
-            {/* Justifications (P3) */}
+            {/* Measure Aggregation */}
+            {measures && measures.length > 0 && (() => {
+              const spSum = measures.reduce((s, m) => s + (m.reduction_unit === "Stellplätze" && m.reduction_value ? Number(m.reduction_value) : 0), 0);
+              const pctSum = measures.reduce((s, m) => s + (m.reduction_unit === "%" && m.reduction_value ? Number(m.reduction_value) : 0), 0);
+              const target = scenario.total_reduction_pct;
+              const met = target != null && pctSum >= target;
+              return (
+                <div className={`mt-2 px-3 py-2 rounded text-[12px] font-medium border ${met ? "border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400" : "border-orange-500/30 bg-orange-500/5 text-orange-700 dark:text-orange-400"}`}>
+                  Gesamtreduktion: {spSum > 0 ? `${spSum} Stellplätze` : ""}{spSum > 0 && pctSum > 0 ? " / " : ""}{pctSum > 0 ? `${pctSum}%` : ""}{spSum === 0 && pctSum === 0 ? "–" : ""}
+                  {target != null && <span className="ml-2 text-[11px] font-normal">(Ziel: {target}%)</span>}
+                </div>
+              );
+            })()}
+
             {open && (
               <JustificationsSection projectId={projectId} scenarioMeasures={measures ?? []} />
             )}
