@@ -20,6 +20,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { format } from "date-fns";
@@ -27,7 +31,8 @@ import { toast } from "sonner";
 import {
   MapPin, Lightbulb, ChevronLeft, ChevronDown, ChevronRight,
   Plus, ClipboardList, FileText, Calendar, Building2, Package,
-  AlertCircle, Beaker, Target,
+  AlertCircle, Beaker, Target, Pencil, Trash2, Scale, BookOpen,
+  BarChart3,
 } from "lucide-react";
 
 /* ── shared styles ── */
@@ -74,12 +79,30 @@ function MetaChip({ icon: Icon, label }: { icon: any; label: string }) {
   );
 }
 
+function ActionIcon({ icon: Icon, onClick, title, variant = "default" }: { icon: any; onClick: () => void; title: string; variant?: "default" | "destructive" }) {
+  return (
+    <button onClick={(e) => { e.stopPropagation(); onClick(); }} title={title}
+      className={`h-6 w-6 inline-flex items-center justify-center rounded hover:bg-muted transition-colors ${variant === "destructive" ? "text-destructive hover:bg-destructive/10" : "text-muted-foreground hover:text-foreground"}`}>
+      <Icon className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+/* ── Status workflow helpers ── */
+const STATUS_TRANSITIONS: Record<string, { label: string; next: string }> = {
+  draft: { label: "Aktivieren", next: "active" },
+  active: { label: "Einreichen", next: "submitted" },
+  submitted: { label: "Genehmigen", next: "approved" },
+};
+
 /* ══════════════════════════════════════════════
    MAIN WORKSPACE
    ══════════════════════════════════════════════ */
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [editProjectOpen, setEditProjectOpen] = useState(false);
 
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ["project", id],
@@ -102,13 +125,26 @@ export default function ProjectDetail() {
     enabled: !!id && id !== ":id",
   });
 
+  const statusMutation = useMutation({
+    mutationFn: async (newStatus: string) => {
+      const { error } = await supabase.from("projects").update({ status: newStatus as any }).eq("id", id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Projektstatus aktualisiert");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-4">
         <Skeleton className="h-6 w-64" />
         <Skeleton className="h-4 w-96" />
         <div className="flex gap-4 mt-6">
-          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 w-20" />)}
+          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-20" />)}
         </div>
         <LoadingSkeleton rows={6} />
       </div>
@@ -135,6 +171,7 @@ export default function ProjectDetail() {
   const muniName = jpv?.jurisdiction_packs?.municipalities?.name;
   const muniState = jpv?.jurisdiction_packs?.municipalities?.state;
   const packVersionLabel = jpv?.version_label || `v${jpv?.version_number ?? "?"}`;
+  const transition = STATUS_TRANSITIONS[project.status];
 
   return (
     <div className="h-full flex flex-col">
@@ -148,6 +185,7 @@ export default function ProjectDetail() {
               </Button>
               <h1 className="text-[16px] font-semibold tracking-tight text-foreground">{project.name}</h1>
               <StatusBadge status={project.status} />
+              <ActionIcon icon={Pencil} onClick={() => setEditProjectOpen(true)} title="Projekt bearbeiten" />
             </div>
             {project.description && (
               <p className="text-[12px] text-muted-foreground ml-8 max-w-2xl leading-relaxed">{project.description}</p>
@@ -159,6 +197,11 @@ export default function ProjectDetail() {
               <MetaChip icon={Calendar} label={`Erstellt ${format(new Date(project.created_at), "dd.MM.yyyy")}`} />
             </div>
           </div>
+          {transition && (
+            <Button size="sm" className="h-8 text-[13px]" onClick={() => statusMutation.mutate(transition.next)} disabled={statusMutation.isPending}>
+              {statusMutation.isPending ? "…" : transition.label}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -167,6 +210,7 @@ export default function ProjectDetail() {
         <div className="border-b border-border bg-card px-6 overflow-x-auto">
           <TabsList className="bg-transparent h-auto p-0 gap-0 flex-nowrap">
             <TabsTrigger value="overview" className={tabClass}>Übersicht</TabsTrigger>
+            <TabsTrigger value="usetypes" className={tabClass}>Nutzungen & Bilanz</TabsTrigger>
             <TabsTrigger value="concepts" className={tabClass}>Konzepte</TabsTrigger>
             <TabsTrigger value="scenarios" className={tabClass}>Szenarien & Maßnahmen</TabsTrigger>
             <TabsTrigger value="monitoring" className={tabClass}>Monitoring</TabsTrigger>
@@ -176,13 +220,105 @@ export default function ProjectDetail() {
 
         <div className="flex-1 overflow-auto">
           <TabsContent value="overview" className="p-6 mt-0"><OverviewTab projectId={project.id} /></TabsContent>
+          <TabsContent value="usetypes" className="p-6 mt-0"><UseTypesTab projectId={project.id} /></TabsContent>
           <TabsContent value="concepts" className="p-6 mt-0"><ConceptsTab projectId={project.id} /></TabsContent>
           <TabsContent value="scenarios" className="p-6 mt-0"><ScenariosTab projectId={project.id} /></TabsContent>
           <TabsContent value="monitoring" className="p-6 mt-0"><MonitoringTab projectId={project.id} /></TabsContent>
           <TabsContent value="documents" className="p-6 mt-0"><DocumentsTab /></TabsContent>
         </div>
       </Tabs>
+
+      <EditProjectDialog open={editProjectOpen} onOpenChange={setEditProjectOpen} project={project} />
     </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   EDIT PROJECT DIALOG
+   ══════════════════════════════════════════════ */
+function EditProjectDialog({ open, onOpenChange, project }: { open: boolean; onOpenChange: (v: boolean) => void; project: any }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description || "");
+  const [status, setStatus] = useState(project.status);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("projects").update({
+        name: name.trim(),
+        description: description.trim() || null,
+        status: status as any,
+      }).eq("id", project.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project", project.id] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Projekt aktualisiert");
+      onOpenChange(false);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setName(project.name); setDescription(project.description || ""); setStatus(project.status); } onOpenChange(v); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Projekt bearbeiten</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="draft">Entwurf</SelectItem>
+                <SelectItem value="active">Aktiv</SelectItem>
+                <SelectItem value="submitted">Eingereicht</SelectItem>
+                <SelectItem value="approved">Freigegeben</SelectItem>
+                <SelectItem value="archived">Archiviert</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Beschreibung</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="text-[13px] min-h-[60px]" rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Speichert…" : "Speichern"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   GENERIC DELETE CONFIRM
+   ══════════════════════════════════════════════ */
+function DeleteConfirm({ open, onOpenChange, title, description, onConfirm, isPending }: {
+  open: boolean; onOpenChange: (v: boolean) => void; title: string; description: string; onConfirm: () => void; isPending: boolean;
+}) {
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-[15px]">{title}</AlertDialogTitle>
+          <AlertDialogDescription className="text-[13px]">{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm} disabled={isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[13px]">
+            {isPending ? "Löscht…" : "Löschen"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -190,7 +326,10 @@ export default function ProjectDetail() {
    OVERVIEW TAB
    ══════════════════════════════════════════════ */
 function OverviewTab({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
   const [createSiteOpen, setCreateSiteOpen] = useState(false);
+  const [editSite, setEditSite] = useState<any>(null);
+  const [deleteSiteId, setDeleteSiteId] = useState<string | null>(null);
 
   const { data: sites, isLoading: sitesLoading } = useQuery({
     queryKey: ["project-sites", projectId],
@@ -208,6 +347,19 @@ function OverviewTab({ projectId }: { projectId: string }) {
       if (error) throw error;
       return data;
     },
+  });
+
+  const deleteSiteMutation = useMutation({
+    mutationFn: async (siteId: string) => {
+      const { error } = await supabase.from("project_sites").delete().eq("id", siteId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-sites", projectId] });
+      toast.success("Standort gelöscht");
+      setDeleteSiteId(null);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
   });
 
   return (
@@ -230,6 +382,7 @@ function OverviewTab({ projectId }: { projectId: string }) {
               <TableHead className={thClass}>Adresse</TableHead>
               <TableHead className={thClass}>Fläche (m²)</TableHead>
               <TableHead className={thClass}>Erstellt</TableHead>
+              <TableHead className={thClass} />
             </TableRow></TableHeader>
             <TableBody>
               {sites.map((s) => (
@@ -238,6 +391,12 @@ function OverviewTab({ projectId }: { projectId: string }) {
                   <TableCell className={tdMuted}>{s.address || "–"}</TableCell>
                   <TableCell className={`${tdMuted} tabular-nums`}>{s.area_sqm != null ? Number(s.area_sqm).toLocaleString("de-DE") : "–"}</TableCell>
                   <TableCell className={tdMuted}>{format(new Date(s.created_at), "dd.MM.yyyy")}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <ActionIcon icon={Pencil} onClick={() => setEditSite(s)} title="Bearbeiten" />
+                      <ActionIcon icon={Trash2} onClick={() => setDeleteSiteId(s.id)} title="Löschen" variant="destructive" />
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -271,6 +430,86 @@ function OverviewTab({ projectId }: { projectId: string }) {
       </div>
 
       <CreateSiteDialog open={createSiteOpen} onOpenChange={setCreateSiteOpen} projectId={projectId} />
+      {editSite && <EditSiteDialog open={!!editSite} onOpenChange={(v) => !v && setEditSite(null)} site={editSite} projectId={projectId} />}
+      <DeleteConfirm open={!!deleteSiteId} onOpenChange={(v) => !v && setDeleteSiteId(null)} title="Standort löschen?" description="Dieser Standort wird unwiderruflich gelöscht." onConfirm={() => deleteSiteId && deleteSiteMutation.mutate(deleteSiteId)} isPending={deleteSiteMutation.isPending} />
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   USE TYPES TAB (P2)
+   ══════════════════════════════════════════════ */
+function UseTypesTab({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  const { data: useTypes, isLoading } = useQuery({
+    queryKey: ["use-types", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("use_types").select("*").eq("project_id", projectId).order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (utId: string) => {
+      const { error } = await supabase.from("use_types").delete().eq("id", utId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["use-types", projectId] });
+      toast.success("Nutzungsart gelöscht");
+      setDeleteId(null);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <div className="max-w-4xl">
+      <TabToolbar label="Nutzungsarten & Stellplatzbilanz" count={useTypes?.length}>
+        <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Nutzung anlegen
+        </Button>
+      </TabToolbar>
+      {isLoading ? <LoadingSkeleton /> :
+       !useTypes?.length ? (
+        <EmptyState icon={BarChart3} title="Noch keine Nutzungsarten erfasst"
+          description="Legen Sie die Nutzungsarten an, um die Stellplatzbilanz zu berechnen."
+          action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Nutzung anlegen</Button>}
+        />
+      ) : (
+        <Table>
+          <TableHeader><TableRow>
+            <TableHead className={thClass}>Bezeichnung</TableHead>
+            <TableHead className={thClass}>Kategorie</TableHead>
+            <TableHead className={thClass}>Einheiten</TableHead>
+            <TableHead className={thClass}>BGF (m²)</TableHead>
+            <TableHead className={thClass} />
+          </TableRow></TableHeader>
+          <TableBody>
+            {useTypes.map((ut) => (
+              <TableRow key={ut.id}>
+                <TableCell className={`font-medium ${tdClass}`}>{ut.name}</TableCell>
+                <TableCell className={tdMuted}>{ut.category || "–"}</TableCell>
+                <TableCell className={`${tdMuted} tabular-nums`}>{ut.unit_count ?? "–"}</TableCell>
+                <TableCell className={`${tdMuted} tabular-nums`}>{ut.gross_floor_area_sqm != null ? Number(ut.gross_floor_area_sqm).toLocaleString("de-DE") : "–"}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <ActionIcon icon={Pencil} onClick={() => setEditItem(ut)} title="Bearbeiten" />
+                    <ActionIcon icon={Trash2} onClick={() => setDeleteId(ut.id)} title="Löschen" variant="destructive" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+      <CreateUseTypeDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
+      {editItem && <EditUseTypeDialog open={!!editItem} onOpenChange={(v) => !v && setEditItem(null)} item={editItem} projectId={projectId} />}
+      <DeleteConfirm open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)} title="Nutzungsart löschen?" description="Diese Nutzungsart wird unwiderruflich gelöscht." onConfirm={() => deleteId && deleteMutation.mutate(deleteId)} isPending={deleteMutation.isPending} />
     </div>
   );
 }
@@ -334,11 +573,7 @@ function ScenariosTab({ projectId }: { projectId: string }) {
   const { data: scenarios, isLoading } = useQuery({
     queryKey: ["scenarios", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("scenarios")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at", { ascending: true });
+      const { data, error } = await supabase.from("scenarios").select("*").eq("project_id", projectId).order("created_at", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -351,7 +586,6 @@ function ScenariosTab({ projectId }: { projectId: string }) {
           <Plus className="h-3.5 w-3.5 mr-1" /> Szenario anlegen
         </Button>
       </TabToolbar>
-
       {isLoading ? <LoadingSkeleton /> :
        !scenarios?.length ? (
         <EmptyState icon={Beaker} title="Keine Szenarien vorhanden"
@@ -365,32 +599,78 @@ function ScenariosTab({ projectId }: { projectId: string }) {
           ))}
         </div>
       )}
-
-      <CreateScenarioDialog
-        open={createScenarioOpen}
-        onOpenChange={setCreateScenarioOpen}
-        projectId={projectId}
-      />
+      <CreateScenarioDialog open={createScenarioOpen} onOpenChange={setCreateScenarioOpen} projectId={projectId} />
     </>
   );
 }
 
 function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: string }) {
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [createMeasureOpen, setCreateMeasureOpen] = useState(false);
+  const [editScenarioOpen, setEditScenarioOpen] = useState(false);
+  const [deleteScenarioOpen, setDeleteScenarioOpen] = useState(false);
+  const [editMeasure, setEditMeasure] = useState<any>(null);
+  const [deleteMeasureId, setDeleteMeasureId] = useState<string | null>(null);
 
   const { data: measures, isLoading } = useQuery({
     queryKey: ["scenario-measures", scenario.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("measures")
-        .select("*")
-        .eq("scenario_id", scenario.id)
-        .order("created_at");
+      const { data, error } = await supabase.from("measures").select("*").eq("scenario_id", scenario.id).order("created_at");
       if (error) throw error;
       return data;
     },
     enabled: open,
+  });
+
+  // Justifications for this scenario's measures
+  const { data: justifications } = useQuery({
+    queryKey: ["justifications", projectId, scenario.id],
+    queryFn: async () => {
+      const measureIds = measures?.map(m => m.id) ?? [];
+      if (!measureIds.length) return [];
+      const { data, error } = await supabase.from("justifications").select("*").eq("project_id", projectId).in("measure_id", measureIds).order("created_at");
+      if (error) throw error;
+      return data;
+    },
+    enabled: open && !!measures?.length,
+  });
+
+  // Assumptions for this scenario
+  const { data: assumptions } = useQuery({
+    queryKey: ["assumptions", scenario.id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("assumptions").select("*").eq("scenario_id", scenario.id).order("created_at");
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
+  const deleteScenarioMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("scenarios").delete().eq("id", scenario.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scenarios", projectId] });
+      toast.success("Szenario gelöscht");
+      setDeleteScenarioOpen(false);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  const deleteMeasureMutation = useMutation({
+    mutationFn: async (mId: string) => {
+      const { error } = await supabase.from("measures").delete().eq("id", mId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scenario-measures", scenario.id] });
+      toast.success("Maßnahme gelöscht");
+      setDeleteMeasureId(null);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
   });
 
   return (
@@ -410,17 +690,18 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               {scenario.total_reduction_pct != null && (
-                <span className="text-[12px] text-muted-foreground tabular-nums">
-                  Zielreduktion: {scenario.total_reduction_pct}%
-                </span>
+                <span className="text-[12px] text-muted-foreground tabular-nums">Zielreduktion: {scenario.total_reduction_pct}%</span>
               )}
+              <ActionIcon icon={Pencil} onClick={() => setEditScenarioOpen(true)} title="Szenario bearbeiten" />
+              <ActionIcon icon={Trash2} onClick={() => setDeleteScenarioOpen(true)} title="Szenario löschen" variant="destructive" />
             </div>
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="border-t border-border px-4 py-3">
+            {/* Measures */}
             <div className="flex items-center justify-between mb-3">
               <span className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">Maßnahmen</span>
               <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => setCreateMeasureOpen(true)}>
@@ -437,6 +718,7 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
                   <TableHead className={thClass}>Kategorie</TableHead>
                   <TableHead className={thClass}>Reduktion</TableHead>
                   <TableHead className={thClass}>Status</TableHead>
+                  <TableHead className={thClass} />
                 </TableRow></TableHeader>
                 <TableBody>
                   {measures.map((m) => (
@@ -447,18 +729,263 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
                         {m.reduction_value != null ? `${m.reduction_value} ${m.reduction_unit || ""}`.trim() : "–"}
                       </TableCell>
                       <TableCell><StatusBadge status={m.status} /></TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <ActionIcon icon={Pencil} onClick={() => setEditMeasure(m)} title="Bearbeiten" />
+                          <ActionIcon icon={Trash2} onClick={() => setDeleteMeasureId(m.id)} title="Löschen" variant="destructive" />
+                        </div>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             )}
+
+            {/* Justifications (P3) */}
+            {open && (
+              <JustificationsSection projectId={projectId} scenarioMeasures={measures ?? []} />
+            )}
+
+            {/* Assumptions (P3) */}
+            {open && (
+              <AssumptionsSection projectId={projectId} scenarioId={scenario.id} assumptions={assumptions ?? []} />
+            )}
           </div>
-          <CreateMeasureDialog
-            open={createMeasureOpen}
-            onOpenChange={setCreateMeasureOpen}
-            scenarioId={scenario.id}
-            projectId={projectId}
-          />
+
+          <CreateMeasureDialog open={createMeasureOpen} onOpenChange={setCreateMeasureOpen} scenarioId={scenario.id} projectId={projectId} />
+          {editMeasure && <EditMeasureDialog open={!!editMeasure} onOpenChange={(v) => !v && setEditMeasure(null)} measure={editMeasure} scenarioId={scenario.id} />}
+          <DeleteConfirm open={!!deleteMeasureId} onOpenChange={(v) => !v && setDeleteMeasureId(null)} title="Maßnahme löschen?" description="Diese Maßnahme wird unwiderruflich gelöscht." onConfirm={() => deleteMeasureId && deleteMeasureMutation.mutate(deleteMeasureId)} isPending={deleteMeasureMutation.isPending} />
+        </CollapsibleContent>
+      </div>
+      {editScenarioOpen && <EditScenarioDialog open={editScenarioOpen} onOpenChange={setEditScenarioOpen} scenario={scenario} projectId={projectId} />}
+      <DeleteConfirm open={deleteScenarioOpen} onOpenChange={setDeleteScenarioOpen} title="Szenario löschen?" description="Dieses Szenario und alle zugehörigen Maßnahmen werden unwiderruflich gelöscht." onConfirm={() => deleteScenarioMutation.mutate()} isPending={deleteScenarioMutation.isPending} />
+    </Collapsible>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   JUSTIFICATIONS SECTION (P3)
+   ══════════════════════════════════════════════ */
+function JustificationsSection({ projectId, scenarioMeasures }: { projectId: string; scenarioMeasures: any[] }) {
+  const queryClient = useQueryClient();
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const measureIds = scenarioMeasures.map(m => m.id);
+
+  const { data: justifications } = useQuery({
+    queryKey: ["justifications", projectId, measureIds.join(",")],
+    queryFn: async () => {
+      if (!measureIds.length) return [];
+      const { data, error } = await supabase.from("justifications").select("*").eq("project_id", projectId).in("measure_id", measureIds).order("created_at");
+      if (error) throw error;
+      return data;
+    },
+    enabled: sectionOpen && measureIds.length > 0,
+  });
+
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [jType, setJType] = useState("");
+  const [measureId, setMeasureId] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("justifications").insert({
+        project_id: projectId,
+        measure_id: measureId || null,
+        title: title.trim(),
+        content: content.trim() || null,
+        justification_type: jType.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["justifications", projectId] });
+      toast.success("Begründung angelegt");
+      setCreateOpen(false);
+      setTitle(""); setContent(""); setJType(""); setMeasureId("");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Collapsible open={sectionOpen} onOpenChange={setSectionOpen}>
+      <div className="mt-4 border-t border-border pt-3">
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+            {sectionOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            <Scale className="h-3.5 w-3.5" />
+            Begründungen ({justifications?.length ?? 0})
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-2 space-y-2">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-3 w-3 mr-1" /> Begründung
+              </Button>
+            </div>
+            {!justifications?.length ? (
+              <p className="text-[12px] text-muted-foreground py-1">Keine Begründungen vorhanden.</p>
+            ) : (
+              <div className="space-y-2">
+                {justifications.map((j) => (
+                  <div key={j.id} className="bg-muted/30 rounded p-3 text-[12px]">
+                    <div className="font-medium text-foreground">{j.title}</div>
+                    {j.content && <p className="text-muted-foreground mt-1">{j.content}</p>}
+                    {j.justification_type && <span className="text-[11px] font-mono text-muted-foreground mt-1 block">{j.justification_type}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader><DialogTitle className="text-[15px]">Begründung anlegen</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Titel *</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="z. B. Nachweis ÖPNV-Anbindung" className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Maßnahme</Label>
+                  <Select value={measureId} onValueChange={setMeasureId}>
+                    <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Maßnahme wählen…" /></SelectTrigger>
+                    <SelectContent>
+                      {scenarioMeasures.map((m) => (
+                        <SelectItem key={m.id} value={m.id} className="text-[13px]">{m.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Rechtsgrundlage / Typ</Label>
+                  <Input value={jType} onChange={(e) => setJType(e.target.value)} placeholder="z. B. § 12 Abs. 3 StSpS München" className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Inhalt</Label>
+                  <Textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="Begründungstext…" className="text-[13px] min-h-[60px]" rows={3} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)} className="text-[13px]">Abbrechen</Button>
+                <Button size="sm" onClick={() => createMutation.mutate()} disabled={!title.trim() || createMutation.isPending} className="text-[13px]">
+                  {createMutation.isPending ? "Erstellt…" : "Anlegen"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   ASSUMPTIONS SECTION (P3)
+   ══════════════════════════════════════════════ */
+function AssumptionsSection({ projectId, scenarioId, assumptions }: { projectId: string; scenarioId: string; assumptions: any[] }) {
+  const queryClient = useQueryClient();
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [confidence, setConfidence] = useState("");
+  const [source, setSource] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("assumptions").insert({
+        project_id: projectId,
+        scenario_id: scenarioId,
+        title: title.trim(),
+        description: description.trim() || null,
+        confidence: confidence || null,
+        source: source.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["assumptions", scenarioId] });
+      toast.success("Annahme angelegt");
+      setCreateOpen(false);
+      setTitle(""); setDescription(""); setConfidence(""); setSource("");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Collapsible open={sectionOpen} onOpenChange={setSectionOpen}>
+      <div className="mt-3 border-t border-border pt-3">
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center gap-2 text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors">
+            {sectionOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+            <BookOpen className="h-3.5 w-3.5" />
+            Annahmen ({assumptions?.length ?? 0})
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="mt-2 space-y-2">
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => setCreateOpen(true)}>
+                <Plus className="h-3 w-3 mr-1" /> Annahme
+              </Button>
+            </div>
+            {!assumptions?.length ? (
+              <p className="text-[12px] text-muted-foreground py-1">Keine Annahmen vorhanden.</p>
+            ) : (
+              <div className="space-y-2">
+                {assumptions.map((a) => (
+                  <div key={a.id} className="bg-muted/30 rounded p-3 text-[12px]">
+                    <div className="font-medium text-foreground">{a.title}</div>
+                    {a.description && <p className="text-muted-foreground mt-1">{a.description}</p>}
+                    <div className="flex gap-3 mt-1">
+                      {a.confidence && <span className="text-[11px] text-muted-foreground">Konfidenz: {a.confidence}</span>}
+                      {a.source && <span className="text-[11px] text-muted-foreground">Quelle: {a.source}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader><DialogTitle className="text-[15px]">Annahme anlegen</DialogTitle></DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Titel *</Label>
+                  <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="z. B. ÖPNV-Taktung ab 2026" className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Konfidenz</Label>
+                  <Select value={confidence} onValueChange={setConfidence}>
+                    <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Wählen…" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hoch">Hoch</SelectItem>
+                      <SelectItem value="mittel">Mittel</SelectItem>
+                      <SelectItem value="niedrig">Niedrig</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Quelle</Label>
+                  <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder="z. B. MVV-Nahverkehrsplan 2025" className="h-9 text-[13px]" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-[13px]">Beschreibung</Label>
+                  <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Details…" className="text-[13px] min-h-[60px]" rows={2} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)} className="text-[13px]">Abbrechen</Button>
+                <Button size="sm" onClick={() => createMutation.mutate()} disabled={!title.trim() || createMutation.isPending} className="text-[13px]">
+                  {createMutation.isPending ? "Erstellt…" : "Anlegen"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </CollapsibleContent>
       </div>
     </Collapsible>
@@ -469,19 +996,31 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
    MONITORING TAB
    ══════════════════════════════════════════════ */
 function MonitoringTab({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const { data: items, isLoading } = useQuery({
     queryKey: ["project-monitoring", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("monitoring_items")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("due_date", { ascending: true });
+      const { data, error } = await supabase.from("monitoring_items").select("*").eq("project_id", projectId).order("due_date", { ascending: true });
       if (error) throw error;
       return data;
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (mId: string) => {
+      const { error } = await supabase.from("monitoring_items").delete().eq("id", mId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-monitoring", projectId] });
+      toast.success("Monitoring-Eintrag gelöscht");
+      setDeleteId(null);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
   });
 
   return (
@@ -504,22 +1043,29 @@ function MonitoringTab({ projectId }: { projectId: string }) {
             <TableHead className={thClass}>Status</TableHead>
             <TableHead className={thClass}>Fällig am</TableHead>
             <TableHead className={thClass}>Abgeschlossen</TableHead>
+            <TableHead className={thClass} />
           </TableRow></TableHeader>
           <TableBody>
-            {items.map((m) => {
-              return (
-                <TableRow key={m.id}>
-                  <TableCell className={`font-medium ${tdClass}`}>{m.title}</TableCell>
-                  <TableCell><StatusBadge status={m.status} /></TableCell>
-                  <TableCell className={`${tdMuted} tabular-nums`}>{m.due_date ? format(new Date(m.due_date), "dd.MM.yyyy") : "–"}</TableCell>
-                  <TableCell className={tdMuted}>{m.completed_at ? format(new Date(m.completed_at), "dd.MM.yyyy") : "–"}</TableCell>
-                </TableRow>
-              );
-            })}
+            {items.map((m) => (
+              <TableRow key={m.id}>
+                <TableCell className={`font-medium ${tdClass}`}>{m.title}</TableCell>
+                <TableCell><StatusBadge status={m.status} /></TableCell>
+                <TableCell className={`${tdMuted} tabular-nums`}>{m.due_date ? format(new Date(m.due_date), "dd.MM.yyyy") : "–"}</TableCell>
+                <TableCell className={tdMuted}>{m.completed_at ? format(new Date(m.completed_at), "dd.MM.yyyy") : "–"}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <ActionIcon icon={Pencil} onClick={() => setEditItem(m)} title="Bearbeiten" />
+                    <ActionIcon icon={Trash2} onClick={() => setDeleteId(m.id)} title="Löschen" variant="destructive" />
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       )}
       <CreateMonitoringDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
+      {editItem && <EditMonitoringDialog open={!!editItem} onOpenChange={(v) => !v && setEditItem(null)} item={editItem} projectId={projectId} />}
+      <DeleteConfirm open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)} title="Monitoring-Eintrag löschen?" description="Dieser Eintrag wird unwiderruflich gelöscht." onConfirm={() => deleteId && deleteMutation.mutate(deleteId)} isPending={deleteMutation.isPending} />
     </>
   );
 }
@@ -535,7 +1081,7 @@ function DocumentsTab() {
 }
 
 /* ══════════════════════════════════════════════
-   CREATE SITE DIALOG
+   INLINE CREATE DIALOGS
    ══════════════════════════════════════════════ */
 function CreateSiteDialog({ open, onOpenChange, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; projectId: string }) {
   const queryClient = useQueryClient();
@@ -589,9 +1135,6 @@ function CreateSiteDialog({ open, onOpenChange, projectId }: { open: boolean; on
   );
 }
 
-/* ══════════════════════════════════════════════
-   CREATE CONCEPT DIALOG
-   ══════════════════════════════════════════════ */
 function CreateConceptDialog({ open, onOpenChange, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; projectId: string }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
@@ -641,9 +1184,6 @@ function CreateConceptDialog({ open, onOpenChange, projectId }: { open: boolean;
   );
 }
 
-/* ══════════════════════════════════════════════
-   CREATE SCENARIO DIALOG
-   ══════════════════════════════════════════════ */
 function CreateScenarioDialog({ open, onOpenChange, projectId }: {
   open: boolean; onOpenChange: (v: boolean) => void; projectId: string;
 }) {
@@ -700,9 +1240,6 @@ function CreateScenarioDialog({ open, onOpenChange, projectId }: {
   );
 }
 
-/* ══════════════════════════════════════════════
-   CREATE MEASURE DIALOG
-   ══════════════════════════════════════════════ */
 function CreateMeasureDialog({ open, onOpenChange, scenarioId, projectId }: {
   open: boolean; onOpenChange: (v: boolean) => void; scenarioId: string; projectId: string;
 }) {
@@ -716,14 +1253,10 @@ function CreateMeasureDialog({ open, onOpenChange, scenarioId, projectId }: {
   const mutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("measures").insert({
-        scenario_id: scenarioId,
-        project_id: projectId,
-        name: name.trim(),
-        category: category.trim() || null,
-        description: description.trim() || null,
+        scenario_id: scenarioId, project_id: projectId, name: name.trim(),
+        category: category.trim() || null, description: description.trim() || null,
         reduction_value: reductionValue ? parseFloat(reductionValue) : null,
-        reduction_unit: reductionUnit || null,
-        status: "proposed",
+        reduction_unit: reductionUnit || null, status: "proposed",
       });
       if (error) throw error;
     },
@@ -746,7 +1279,7 @@ function CreateMeasureDialog({ open, onOpenChange, scenarioId, projectId }: {
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Carsharing-Station" className="h-9 text-[13px]" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-[13px]">Kategorie *</Label>
+            <Label className="text-[13px]">Kategorie</Label>
             <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="z. B. Sharing, ÖPNV, Rad" className="h-9 text-[13px]" />
           </div>
           <div className="space-y-1.5">
@@ -766,7 +1299,7 @@ function CreateMeasureDialog({ open, onOpenChange, scenarioId, projectId }: {
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
-          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || !category.trim() || mutation.isPending} className="text-[13px]">
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
             {mutation.isPending ? "Erstellt…" : "Maßnahme erstellen"}
           </Button>
         </DialogFooter>
@@ -775,22 +1308,19 @@ function CreateMeasureDialog({ open, onOpenChange, scenarioId, projectId }: {
   );
 }
 
-/* ══════════════════════════════════════════════
-   CREATE MONITORING DIALOG (inline)
-   ══════════════════════════════════════════════ */
 function CreateMonitoringDialog({ open, onOpenChange, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; projectId: string }) {
   const queryClient = useQueryClient();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [status, setStatus] = useState("pending");
 
   const mutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("monitoring_items").insert({
-        project_id: projectId,
-        title: title.trim(),
-        description: description.trim() || null,
-        due_date: dueDate || null,
+        project_id: projectId, title: title.trim(),
+        description: description.trim() || null, due_date: dueDate || null,
+        status: status as any,
       });
       if (error) throw error;
     },
@@ -798,7 +1328,7 @@ function CreateMonitoringDialog({ open, onOpenChange, projectId }: { open: boole
       queryClient.invalidateQueries({ queryKey: ["project-monitoring", projectId] });
       toast.success("Monitoring-Eintrag erstellt");
       onOpenChange(false);
-      setTitle(""); setDescription(""); setDueDate("");
+      setTitle(""); setDescription(""); setDueDate(""); setStatus("pending");
     },
     onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
   });
@@ -813,6 +1343,17 @@ function CreateMonitoringDialog({ open, onOpenChange, projectId }: { open: boole
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="z. B. Carsharing-Nachweis Q3" className="h-9 text-[13px]" />
           </div>
           <div className="space-y-1.5">
+            <Label className="text-[13px]">Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Ausstehend</SelectItem>
+                <SelectItem value="in_progress">In Bearbeitung</SelectItem>
+                <SelectItem value="non_compliant">Nicht konform</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
             <Label className="text-[13px]">Fälligkeitsdatum</Label>
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-9 text-[13px]" />
           </div>
@@ -825,6 +1366,395 @@ function CreateMonitoringDialog({ open, onOpenChange, projectId }: { open: boole
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
           <Button size="sm" onClick={() => mutation.mutate()} disabled={!title.trim() || mutation.isPending} className="text-[13px]">
             {mutation.isPending ? "Erstellt…" : "Eintrag erstellen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CreateUseTypeDialog({ open, onOpenChange, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; projectId: string }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
+  const [unitCount, setUnitCount] = useState("");
+  const [gfa, setGfa] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("use_types").insert({
+        project_id: projectId, name: name.trim(),
+        category: category || null,
+        unit_count: unitCount ? parseInt(unitCount, 10) : null,
+        gross_floor_area_sqm: gfa ? parseFloat(gfa) : null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["use-types", projectId] });
+      toast.success("Nutzungsart angelegt");
+      onOpenChange(false);
+      setName(""); setCategory(""); setUnitCount(""); setGfa("");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Nutzungsart anlegen</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Bezeichnung *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Wohnnutzung Typ A" className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Nutzungsart</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Wählen…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Wohnen">Wohnen</SelectItem>
+                <SelectItem value="Büro">Büro</SelectItem>
+                <SelectItem value="Gewerbe">Gewerbe</SelectItem>
+                <SelectItem value="Einzelhandel">Einzelhandel</SelectItem>
+                <SelectItem value="Sonstiges">Sonstiges</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Anzahl Einheiten</Label>
+              <Input value={unitCount} onChange={(e) => setUnitCount(e.target.value)} type="number" placeholder="z. B. 120" className="h-9 text-[13px]" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">BGF (m²)</Label>
+              <Input value={gfa} onChange={(e) => setGfa(e.target.value)} type="number" placeholder="z. B. 8500" className="h-9 text-[13px]" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Erstellt…" : "Anlegen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   EDIT DIALOGS
+   ══════════════════════════════════════════════ */
+function EditSiteDialog({ open, onOpenChange, site, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; site: any; projectId: string }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(site.name);
+  const [address, setAddress] = useState(site.address || "");
+  const [areaSqm, setAreaSqm] = useState(site.area_sqm?.toString() || "");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("project_sites").update({
+        name: name.trim(), address: address.trim() || null, area_sqm: areaSqm ? parseFloat(areaSqm) : null,
+      }).eq("id", site.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-sites", projectId] });
+      toast.success("Standort aktualisiert");
+      onOpenChange(false);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Standort bearbeiten</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Adresse</Label>
+            <Input value={address} onChange={(e) => setAddress(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Fläche (m²)</Label>
+            <Input value={areaSqm} onChange={(e) => setAreaSqm(e.target.value)} type="number" className="h-9 text-[13px]" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Speichert…" : "Speichern"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditScenarioDialog({ open, onOpenChange, scenario, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; scenario: any; projectId: string }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(scenario.name);
+  const [description, setDescription] = useState(scenario.description || "");
+  const [isBaseline, setIsBaseline] = useState(scenario.is_baseline);
+  const [totalReduction, setTotalReduction] = useState(scenario.total_reduction_pct?.toString() || "");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("scenarios").update({
+        name: name.trim(), description: description.trim() || null,
+        is_baseline: isBaseline, total_reduction_pct: totalReduction ? parseFloat(totalReduction) : null,
+      }).eq("id", scenario.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scenarios", projectId] });
+      toast.success("Szenario aktualisiert");
+      onOpenChange(false);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Szenario bearbeiten</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Beschreibung</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="text-[13px] min-h-[60px]" rows={2} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox id="edit-baseline" checked={isBaseline} onCheckedChange={(v) => setIsBaseline(v === true)} />
+            <Label htmlFor="edit-baseline" className="text-[13px]">Als Baseline markieren</Label>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Zielreduktion (%)</Label>
+            <Input value={totalReduction} onChange={(e) => setTotalReduction(e.target.value)} type="number" placeholder="z. B. 30" className="h-9 text-[13px]" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Speichert…" : "Speichern"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditMeasureDialog({ open, onOpenChange, measure, scenarioId }: { open: boolean; onOpenChange: (v: boolean) => void; measure: any; scenarioId: string }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(measure.name);
+  const [category, setCategory] = useState(measure.category || "");
+  const [description, setDescription] = useState(measure.description || "");
+  const [reductionValue, setReductionValue] = useState(measure.reduction_value?.toString() || "");
+  const [reductionUnit, setReductionUnit] = useState(measure.reduction_unit || "Stellplätze");
+  const [status, setStatus] = useState(measure.status);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("measures").update({
+        name: name.trim(), category: category.trim() || null, description: description.trim() || null,
+        reduction_value: reductionValue ? parseFloat(reductionValue) : null,
+        reduction_unit: reductionUnit || null, status,
+      }).eq("id", measure.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scenario-measures", scenarioId] });
+      toast.success("Maßnahme aktualisiert");
+      onOpenChange(false);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Maßnahme bearbeiten</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Kategorie</Label>
+            <Input value={category} onChange={(e) => setCategory(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="proposed">Vorgeschlagen</SelectItem>
+                <SelectItem value="approved">Freigegeben</SelectItem>
+                <SelectItem value="implemented">Umgesetzt</SelectItem>
+                <SelectItem value="rejected">Abgelehnt</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Beschreibung</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="text-[13px] min-h-[60px]" rows={2} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Reduktionswert</Label>
+              <Input value={reductionValue} onChange={(e) => setReductionValue(e.target.value)} type="number" className="h-9 text-[13px]" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Einheit</Label>
+              <Input value={reductionUnit} onChange={(e) => setReductionUnit(e.target.value)} className="h-9 text-[13px]" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Speichert…" : "Speichern"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditMonitoringDialog({ open, onOpenChange, item, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; item: any; projectId: string }) {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState(item.title);
+  const [description, setDescription] = useState(item.description || "");
+  const [dueDate, setDueDate] = useState(item.due_date || "");
+  const [status, setStatus] = useState(item.status);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("monitoring_items").update({
+        title: title.trim(), description: description.trim() || null,
+        due_date: dueDate || null, status: status as any,
+      }).eq("id", item.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-monitoring", projectId] });
+      toast.success("Monitoring-Eintrag aktualisiert");
+      onOpenChange(false);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Monitoring-Eintrag bearbeiten</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Titel *</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Status</Label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Ausstehend</SelectItem>
+                <SelectItem value="in_progress">In Bearbeitung</SelectItem>
+                <SelectItem value="compliant">Konform</SelectItem>
+                <SelectItem value="non_compliant">Nicht konform</SelectItem>
+                <SelectItem value="waived">Ausgenommen</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Fälligkeitsdatum</Label>
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Beschreibung</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} className="text-[13px] min-h-[60px]" rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!title.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Speichert…" : "Speichern"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditUseTypeDialog({ open, onOpenChange, item, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; item: any; projectId: string }) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState(item.name);
+  const [category, setCategory] = useState(item.category || "");
+  const [unitCount, setUnitCount] = useState(item.unit_count?.toString() || "");
+  const [gfa, setGfa] = useState(item.gross_floor_area_sqm?.toString() || "");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("use_types").update({
+        name: name.trim(), category: category || null,
+        unit_count: unitCount ? parseInt(unitCount, 10) : null,
+        gross_floor_area_sqm: gfa ? parseFloat(gfa) : null,
+      }).eq("id", item.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["use-types", projectId] });
+      toast.success("Nutzungsart aktualisiert");
+      onOpenChange(false);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Nutzungsart bearbeiten</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Bezeichnung *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Nutzungsart</Label>
+            <Select value={category} onValueChange={setCategory}>
+              <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Wählen…" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Wohnen">Wohnen</SelectItem>
+                <SelectItem value="Büro">Büro</SelectItem>
+                <SelectItem value="Gewerbe">Gewerbe</SelectItem>
+                <SelectItem value="Einzelhandel">Einzelhandel</SelectItem>
+                <SelectItem value="Sonstiges">Sonstiges</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Anzahl Einheiten</Label>
+              <Input value={unitCount} onChange={(e) => setUnitCount(e.target.value)} type="number" className="h-9 text-[13px]" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">BGF (m²)</Label>
+              <Input value={gfa} onChange={(e) => setGfa(e.target.value)} type="number" className="h-9 text-[13px]" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Speichert…" : "Speichern"}
           </Button>
         </DialogFooter>
       </DialogContent>
