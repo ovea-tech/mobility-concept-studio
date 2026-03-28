@@ -125,7 +125,7 @@ export default function PackDetail() {
 
         <TabsContent value="overview" className="p-6 mt-0">
           <PackOverviewTab packVersionId={activeVersionId} municipalityId={municipalityId} versions={versions} />
-          <div className="px-6 pb-6"><RulesetViewerSection packVersionId={activeVersionId} /></div>
+          <div className="mt-6"><RulesetViewer packVersionId={activeVersionId} /></div>
         </TabsContent>
         <TabsContent value="versions" className="p-6 mt-0">
           <VersionsTab packId={pack.id} versions={versions} />
