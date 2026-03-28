@@ -12,6 +12,7 @@ import {
   SidebarHeader, SidebarSeparator, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useUserRole } from "@/hooks/useUserRole";
 import { supabase } from "@/integrations/supabase/client";
 import type { LucideIcon } from "lucide-react";
