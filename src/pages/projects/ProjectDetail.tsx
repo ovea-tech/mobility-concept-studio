@@ -520,6 +520,60 @@ function UseTypesTab({ projectId }: { projectId: string }) {
   );
 }
 
+/* ── Stellplatzbilanz Section ── */
+function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: string }) {
+  const { data: scenarios } = useQuery({
+    queryKey: ["scenarios-bilanz", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("scenarios").select("total_reduction_pct, is_baseline").eq("project_id", projectId);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const categorySums: Record<string, number> = {};
+  useTypes.forEach((ut) => {
+    const cat = ut.category || "Sonstiges";
+    categorySums[cat] = (categorySums[cat] || 0) + (ut.unit_count ?? 0);
+  });
+
+  const activeReduction = scenarios?.find(s => s.is_baseline)?.total_reduction_pct ?? scenarios?.[0]?.total_reduction_pct ?? null;
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="border border-border rounded-md bg-card p-4">
+        <h3 className="text-[13px] font-medium text-foreground mb-3">Zusammenfassung nach Kategorie</h3>
+        <div className="grid grid-cols-3 gap-3">
+          {Object.entries(categorySums).map(([cat, count]) => (
+            <div key={cat} className="bg-muted/30 rounded px-3 py-2">
+              <div className="text-[11px] text-muted-foreground">{cat}</div>
+              <div className="text-[15px] font-semibold text-foreground tabular-nums">{count} Einheiten</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border border-border rounded-md bg-card p-4">
+        <h3 className="text-[13px] font-medium text-foreground mb-1">Stellplatzbilanz</h3>
+        <p className="text-[11px] text-muted-foreground mb-3">Die Stellplatzbilanz wird auf Basis der Nutzungsarten und der kommunalen Stellplatzsatzung berechnet.</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <div className="text-[11px] text-muted-foreground">Pflichtstellplätze</div>
+            <div className="text-[15px] font-semibold text-foreground">–</div>
+          </div>
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <div className="text-[11px] text-muted-foreground">Beantragte Reduktion</div>
+            <div className="text-[15px] font-semibold text-foreground tabular-nums">{activeReduction != null ? `${activeReduction}%` : "–"}</div>
+          </div>
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <div className="text-[11px] text-muted-foreground">Verbleibend</div>
+            <div className="text-[15px] font-semibold text-foreground">–</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
 /* ══════════════════════════════════════════════
    CONCEPTS TAB
    ══════════════════════════════════════════════ */
