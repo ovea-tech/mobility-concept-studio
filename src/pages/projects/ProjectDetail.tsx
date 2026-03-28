@@ -39,6 +39,7 @@ import { CalculatorTab } from "@/components/project/CalculatorTab";
 import { ComplianceTab } from "@/components/project/ComplianceTab";
 import { FormblattViewer } from "@/components/project/FormblattViewer";
 import { WorkflowStepper, WORKFLOW_STEPS, type WorkflowStep } from "@/components/project/WorkflowStepper";
+import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
 /* ── shared styles ── */
 const tabClass =
@@ -46,6 +47,15 @@ const tabClass =
 const thClass = "text-[11px] uppercase tracking-wider text-muted-foreground/70 font-medium";
 const tdClass = "text-[13px]";
 const tdMuted = "text-[12px] text-muted-foreground";
+
+function TabErrorFallback({ label }: { label: string }) {
+  return (
+    <div className="border border-destructive rounded-md px-4 py-3">
+      <p className="text-[13px] font-medium text-destructive">{label} konnte nicht geladen werden.</p>
+      <p className="text-[12px] text-muted-foreground mt-1">Bitte Seite neu laden.</p>
+    </div>
+  );
+}
 
 function TabToolbar({ label, count, children }: { label: string; count?: number; children?: React.ReactNode }) {
   return (
@@ -385,30 +395,42 @@ export default function ProjectDetail() {
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="calculator" className="p-6 mt-0">
-            <CalculatorTab projectId={project.id} project={project} onNavigate={(tab) => {
-              if (tab === "compliance") { setActiveStep(2); setActiveSubTab("compliance"); }
-              else if (tab === "scenarios") { setActiveStep(2); setActiveSubTab("scenarios"); }
-            }} />
+            <ErrorBoundary fallback={<TabErrorFallback label="Kalkulator" />}>
+              <CalculatorTab projectId={project.id} project={project} onNavigate={(tab) => {
+                if (tab === "compliance") { setActiveStep(2); setActiveSubTab("compliance"); }
+                else if (tab === "scenarios") { setActiveStep(2); setActiveSubTab("scenarios"); }
+              }} />
+            </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="compliance" className="p-6 mt-0">
-            <ComplianceTab projectId={project.id} project={project} />
+            <ErrorBoundary fallback={<TabErrorFallback label="Nachweisführung" />}>
+              <ComplianceTab projectId={project.id} project={project} />
+            </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="concepts" className="p-6 mt-0">
-            <ConceptsTab projectId={project.id} />
+            <ErrorBoundary fallback={<TabErrorFallback label="Konzepte" />}>
+              <ConceptsTab projectId={project.id} />
+            </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="scenarios" className="p-6 mt-0">
-            <ScenariosTab projectId={project.id} />
+            <ErrorBoundary fallback={<TabErrorFallback label="Szenarien" />}>
+              <ScenariosTab projectId={project.id} />
+            </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="monitoring" className="p-6 mt-0">
-            <MonitoringTab projectId={project.id} />
+            <ErrorBoundary fallback={<TabErrorFallback label="Monitoring" />}>
+              <MonitoringTab projectId={project.id} />
+            </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="documents" className="p-6 mt-0">
-            <DocumentsTab projectId={project.id} project={project} />
+            <ErrorBoundary fallback={<TabErrorFallback label="Dokumente" />}>
+              <DocumentsTab projectId={project.id} project={project} />
+            </ErrorBoundary>
           </TabsContent>
         </div>
       </Tabs>
