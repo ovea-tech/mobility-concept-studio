@@ -12,6 +12,7 @@ import CustomerDashboard from "./pages/CustomerDashboard";
 import StudioDashboard from "./pages/StudioDashboard";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import ProjectList from "./pages/projects/ProjectList";
+import NewProject from "./pages/projects/NewProject";
 import ProjectDetail from "./pages/projects/ProjectDetail";
 import MunicipalityList from "./pages/studio/MunicipalityList";
 import PackList from "./pages/studio/PackList";
@@ -45,6 +46,7 @@ const App = () => (
 
             {/* Customer */}
             <Route path="/projects" element={<ProjectList />} />
+            <Route path="/projects/new" element={<NewProject />} />
             <Route path="/projects/:id" element={<ProjectDetail />} />
 
             {/* Pack Studio */}
@@ -56,7 +58,7 @@ const App = () => (
             {/* Admin */}
             <Route path="/admin/dashboard" element={<AdminDashboard />} />
             <Route path="/admin/organizations" element={<OrganizationList />} />
-            <Route path="/admin/workspaces" element={<PlaceholderPage title="Arbeitsbereiche" description="Workspace-Verwaltung" />} />
+            <Route path="/admin/users" element={<PlaceholderPage title="Benutzer" description="Benutzerverwaltung" />} />
             <Route path="/admin/roles" element={<PlaceholderPage title="Rollen" description="Plattform-Rollenverwaltung" />} />
             <Route path="/admin/audit" element={<AuditLog />} />
           </Route>

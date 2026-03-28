@@ -27,7 +27,7 @@ const studioItems: NavItem[] = [
 const adminItems: NavItem[] = [
   { title: "Dashboard", url: "/admin/dashboard", icon: LayoutDashboard },
   { title: "Organisationen", url: "/admin/organizations", icon: Building2 },
-  { title: "Arbeitsbereiche", url: "/admin/workspaces", icon: Briefcase },
+  { title: "Benutzer", url: "/admin/users", icon: Briefcase },
   { title: "Rollen", url: "/admin/roles", icon: Shield },
   { title: "Protokoll", url: "/admin/audit", icon: ScrollText },
 ];
