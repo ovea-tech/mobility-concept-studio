@@ -200,7 +200,7 @@ function OverviewTab({ projectId }: { projectId: string }) {
   const { data: monitoring } = useQuery({ queryKey: ["project-monitoring-count", projectId], queryFn: async () => { const { data } = await supabase.from("monitoring_items").select("id, status, due_date").eq("project_id", projectId); return data ?? []; } });
 
   const openMonitoring = monitoring?.filter(m => m.status === "pending" || m.status === "in_progress").length ?? 0;
-  const overdue = monitoring?.filter(m => m.due_date && new Date(m.due_date) < new Date() && m.status !== "completed").length ?? 0;
+  const overdue = monitoring?.filter(m => m.due_date && new Date(m.due_date) < new Date() && (m.status === "pending" || m.status === "in_progress")).length ?? 0;
   const activeMeasures = measures?.filter(m => m.status === "proposed" || m.status === "active").length ?? 0;
 
   return (
@@ -576,11 +576,7 @@ function AssumptionsTab({ projectId }: { projectId: string }) {
               <TableCell className={tdMuted}>{(a.scenarios as any)?.name ?? "–"}</TableCell>
               <TableCell>
                 {a.confidence ? (
-                  <span className={`text-[11px] font-medium px-1.5 py-[1px] rounded-[3px] ${
-                    a.confidence === "high" ? "bg-emerald-500/10 text-emerald-700" :
-                    a.confidence === "medium" ? "bg-amber-500/10 text-amber-700" :
-                    "bg-muted text-muted-foreground"
-                  }`}>{a.confidence === "high" ? "Hoch" : a.confidence === "medium" ? "Mittel" : a.confidence === "low" ? "Niedrig" : a.confidence}</span>
+                  <StatusBadge status={a.confidence === "high" ? "approved" : a.confidence === "medium" ? "pending" : "draft"} className="text-[11px]" />
                 ) : <span className={tdMuted}>–</span>}
               </TableCell>
               <TableCell className={tdMuted}>{a.source || "–"}</TableCell>
@@ -774,7 +770,7 @@ function MonitoringTab({ projectId }: { projectId: string }) {
           <TableHead className={thClass}>Abgeschlossen</TableHead>
         </TableRow></TableHeader><TableBody>
           {data.map((m) => {
-            const isOverdue = m.due_date && new Date(m.due_date) < now && m.status !== "completed";
+            const isOverdue = m.due_date && new Date(m.due_date) < now && m.status !== "compliant" && m.status !== "waived";
             return (
               <TableRow key={m.id}>
                 <TableCell className={`font-medium ${tdClass}`}>{m.title}</TableCell>
