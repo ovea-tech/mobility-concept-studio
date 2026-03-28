@@ -22,6 +22,14 @@ const statusConfig: Record<string, { label: string; variant: string }> = {
   withdrawn: { label: "Zurückgezogen", variant: "bg-muted text-muted-foreground" },
   // pack_status
   released: { label: "Veröffentlicht", variant: "bg-emerald-500/10 text-emerald-700" },
+  // overdue (virtual)
+  overdue: { label: "Überfällig", variant: "bg-destructive/10 text-destructive" },
+  // rule_candidate_status
+  inbox: { label: "Eingang", variant: "bg-muted text-muted-foreground" },
+  triaged: { label: "Gesichtet", variant: "bg-amber-500/10 text-amber-700" },
+  drafted: { label: "Entworfen", variant: "bg-primary/10 text-primary" },
+  integrated: { label: "Integriert", variant: "bg-emerald-500/10 text-emerald-700" },
+  discarded: { label: "Verworfen", variant: "bg-muted text-muted-foreground" },
   deprecated: { label: "Veraltet", variant: "bg-muted text-muted-foreground" },
   // rule_status
   candidate: { label: "Kandidat", variant: "bg-muted text-muted-foreground" },
