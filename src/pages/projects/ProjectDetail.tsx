@@ -92,9 +92,8 @@ function ActionIcon({ icon: Icon, onClick, title, variant = "default" }: { icon:
 
 /* ── Status workflow helpers ── */
 const STATUS_TRANSITIONS: Record<string, { label: string; next: string }> = {
-  draft: { label: "Aktivieren", next: "active" },
-  active: { label: "Einreichen", next: "submitted" },
-  submitted: { label: "Genehmigen", next: "approved" },
+  draft: { label: "Planung starten", next: "active" },
+  active: { label: "Konzept finalisieren", next: "submitted" },
 };
 
 /* ══════════════════════════════════════════════
@@ -106,6 +105,7 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const [editProjectOpen, setEditProjectOpen] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
@@ -132,10 +132,15 @@ export default function ProjectDetail() {
       const { error } = await supabase.from("projects").update({ status: newStatus as any }).eq("id", id!);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, newStatus) => {
       queryClient.invalidateQueries({ queryKey: ["project", id] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("Projektstatus aktualisiert");
+      const msgs: Record<string, string> = {
+        active: "Planung gestartet",
+        submitted: "Konzept wurde finalisiert",
+        approved: "Behördliche Genehmigung bestätigt",
+      };
+      toast.success(msgs[newStatus] ?? "Projektstatus aktualisiert");
     },
     onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
   });
@@ -206,6 +211,13 @@ export default function ProjectDetail() {
               {statusMutation.isPending ? "…" : transition.label}
             </Button>
           )}
+          {project.status === 'submitted' && (
+            <Button size="sm" className="h-8 text-[13px]"
+              onClick={() => setApproveConfirmOpen(true)}
+              disabled={statusMutation.isPending}>
+              Als behördlich genehmigt markieren
+            </Button>
+          )}
         </div>
       </div>
 
@@ -241,6 +253,12 @@ export default function ProjectDetail() {
       <SubmitConfirmDialog
         open={submitConfirmOpen}
         onOpenChange={setSubmitConfirmOpen}
+        projectId={project.id}
+        statusMutation={statusMutation}
+      />
+      <ApproveConfirmDialog
+        open={approveConfirmOpen}
+        onOpenChange={setApproveConfirmOpen}
         projectId={project.id}
         statusMutation={statusMutation}
       />
@@ -290,9 +308,9 @@ function EditProjectDialog({ open, onOpenChange, project }: { open: boolean; onO
               <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="draft">Entwurf</SelectItem>
-                <SelectItem value="active">Aktiv</SelectItem>
-                <SelectItem value="submitted">Eingereicht</SelectItem>
-                <SelectItem value="approved">Freigegeben</SelectItem>
+                <SelectItem value="active">In Bearbeitung</SelectItem>
+                <SelectItem value="submitted">Finalisiert</SelectItem>
+                <SelectItem value="approved">Behördlich genehmigt</SelectItem>
                 <SelectItem value="archived">Archiviert</SelectItem>
               </SelectContent>
             </Select>
@@ -1904,7 +1922,7 @@ function SubmitConfirmDialog({ open, onOpenChange, projectId, statusMutation }: 
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["submission-snapshots", projectId] });
-      toast.success("Projekt eingereicht – Snapshot erstellt");
+      toast.success("Konzept wurde finalisiert – Snapshot erstellt");
       onOpenChange(false);
     } catch (err: any) {
       toast.error("Fehler: " + (err.message || "Unbekannt"));
@@ -1917,16 +1935,74 @@ function SubmitConfirmDialog({ open, onOpenChange, projectId, statusMutation }: 
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-[15px]">Projekt wirklich einreichen?</AlertDialogTitle>
+          <AlertDialogTitle className="text-[15px]">Konzept finalisieren?</AlertDialogTitle>
           <AlertDialogDescription className="text-[13px]">
-            Nach der Einreichung kann das Konzept nicht mehr bearbeitet werden. Bitte bestätigen Sie die Vollständigkeit aller Unterlagen.
+            Das Konzept wird als abgeschlossen markiert und eingefroren. Alle Planungsdaten werden als revisionssicherer Snapshot gespeichert. Änderungen sind danach nicht mehr möglich. Das Konzept kann anschließend für die Behördeneinreichung vorbereitet werden.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
           <AlertDialogAction onClick={handleSubmit} disabled={isPending}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[13px]">
-            {isPending ? "Wird eingereicht…" : "Jetzt einreichen"}
+            {isPending ? "Wird finalisiert…" : "Jetzt finalisieren"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   APPROVE CONFIRM DIALOG
+   ══════════════════════════════════════════════ */
+function ApproveConfirmDialog({ open, onOpenChange, projectId, statusMutation }: {
+  open: boolean; onOpenChange: (v: boolean) => void; projectId: string; statusMutation: any;
+}) {
+  const [aktenzeichen, setAktenzeichen] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleApprove = async () => {
+    setIsPending(true);
+    try {
+      const updateData: any = { status: "approved" as any };
+      if (aktenzeichen.trim()) {
+        updateData.description = aktenzeichen.trim();
+      }
+      const { error } = await supabase.from("projects").update(updateData).eq("id", projectId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Behördliche Genehmigung bestätigt");
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-[15px]">Behördliche Genehmigung bestätigen?</AlertDialogTitle>
+          <AlertDialogDescription className="text-[13px]">
+            Bitte bestätigen Sie, dass das Mobilitätskonzept durch die zuständige Behörde genehmigt wurde. Tragen Sie ggf. das Aktenzeichen ein.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="py-2">
+          <Input
+            placeholder="Aktenzeichen der Lokalbaukommission (optional)"
+            value={aktenzeichen}
+            onChange={(e) => setAktenzeichen(e.target.value)}
+            className="h-9 text-[13px]"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
+          <AlertDialogAction onClick={handleApprove} disabled={isPending} className="text-[13px]">
+            {isPending ? "Wird bestätigt…" : "Genehmigung bestätigen"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1949,15 +2025,15 @@ function SnapshotsSection({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <TabToolbar label="Einreichungen" count={snapshots?.length} />
+      <TabToolbar label="Finalisierungen" count={snapshots?.length} />
       {isLoading ? <LoadingSkeleton rows={2} /> :
        !snapshots?.length ? (
-        <p className="text-[13px] text-muted-foreground">Noch keine Einreichungen. Nach der Einreichung wird hier ein revisionssicherer Snapshot gespeichert.</p>
+        <p className="text-[13px] text-muted-foreground">Noch keine Finalisierung. Nach der Finalisierung wird hier ein revisionssicherer Snapshot des Konzeptstands gespeichert.</p>
       ) : (
         <Table>
           <TableHeader><TableRow>
             <TableHead className={thClass}>Version</TableHead>
-            <TableHead className={thClass}>Eingereicht am</TableHead>
+            <TableHead className={thClass}>Finalisiert am</TableHead>
             <TableHead className={thClass}>Status</TableHead>
           </TableRow></TableHeader>
           <TableBody>
@@ -1965,7 +2041,7 @@ function SnapshotsSection({ projectId }: { projectId: string }) {
               <TableRow key={s.id}>
                 <TableCell className={`font-medium ${tdClass} font-mono`}>{s.version_label}</TableCell>
                 <TableCell className={tdMuted}>{s.submitted_at ? format(new Date(s.submitted_at), "dd.MM.yyyy HH:mm") : "–"}</TableCell>
-                <TableCell><Badge variant="secondary" className="text-[10px]">Eingereicht</Badge></TableCell>
+                <TableCell><Badge variant="secondary" className="text-[10px]">Finalisiert</Badge></TableCell>
               </TableRow>
             ))}
           </TableBody>
