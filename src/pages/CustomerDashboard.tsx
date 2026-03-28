@@ -4,8 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
-  FolderKanban, Plus, ClipboardList, AlertTriangle,
+  FolderKanban, Plus, ClipboardList, AlertTriangle, Calculator,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -15,7 +16,7 @@ export default function CustomerDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("projects")
-        .select("id, name, status, created_at, updated_at")
+        .select("id, name, status, created_at, updated_at, mobility_factor")
         .order("updated_at", { ascending: false })
         .limit(20);
       if (error) throw error;
@@ -45,9 +46,28 @@ export default function CustomerDashboard() {
     approved: allProjects.filter((p) => p.status === "approved").length,
   };
 
+  /* Action card logic */
+  const overdueItem = monitoringItems?.find(
+    (m) => m.due_date && new Date(m.due_date) < new Date()
+  );
+  const activeMissingMf = allProjects.find(
+    (p) => p.status === "active" && p.mobility_factor == null
+  );
+
+  function getNextStep(p: any) {
+    if (p.status === "draft") return { label: "Planung starten", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300" };
+    if (p.status === "active") {
+      return p.mobility_factor == null
+        ? { label: "MF noch nicht berechnet", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" }
+        : { label: "Berechnung läuft", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300" };
+    }
+    if (p.status === "submitted") return { label: "Formblatt bereit", color: "bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-300" };
+    if (p.status === "approved") return { label: "Abgeschlossen ✓", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300" };
+    return null;
+  }
+
   return (
     <div>
-      {/* Header */}
       <div className="border-b border-border bg-card px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -83,6 +103,37 @@ export default function CustomerDashboard() {
           ))}
         </div>
 
+        {/* FIX 2: Action card */}
+        {overdueItem && (() => {
+          const proj = overdueItem.projects as any;
+          return (
+            <div className="border-2 border-destructive/50 rounded-md bg-destructive/5 px-4 py-3 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+              <div className="flex-1">
+                <p className="text-[13px] font-medium text-destructive">1 Monitoring-Nachweis überfällig</p>
+                <p className="text-[12px] text-foreground mt-0.5">{overdueItem.title}</p>
+                {proj?.name && <p className="text-[11px] text-muted-foreground">{proj.name}</p>}
+              </div>
+              <Link to={`/projects/${overdueItem.project_id}`}>
+                <Button size="sm" variant="outline" className="h-7 text-[12px]">→ Jetzt erledigen</Button>
+              </Link>
+            </div>
+          );
+        })()}
+
+        {!overdueItem && activeMissingMf && (
+          <div className="border-2 border-amber-300 rounded-md bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 px-4 py-3 flex items-start gap-3">
+            <Calculator className="h-5 w-5 text-amber-600 mt-0.5 shrink-0" />
+            <div className="flex-1">
+              <p className="text-[13px] font-medium text-amber-800 dark:text-amber-300">Mobilitätsfaktor noch nicht berechnet</p>
+              <p className="text-[12px] text-foreground mt-0.5">{activeMissingMf.name}</p>
+            </div>
+            <Link to={`/projects/${activeMissingMf.id}`}>
+              <Button size="sm" variant="outline" className="h-7 text-[12px]">→ Jetzt berechnen</Button>
+            </Link>
+          </div>
+        )}
+
         <div className="grid grid-cols-3 gap-6">
           {/* Recent projects */}
           <div className="col-span-2">
@@ -108,23 +159,34 @@ export default function CustomerDashboard() {
                     <tr className="border-b border-border bg-muted/30">
                       <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Projekt</th>
                       <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Status</th>
+                      <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Nächster Schritt</th>
                       <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Aktualisiert</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {allProjects.slice(0, 5).map((p) => (
-                      <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-2.5 font-medium">
-                          <Link to={`/projects/${p.id}`} className="text-primary hover:underline">
-                            {p.name}
-                          </Link>
-                        </td>
-                        <td className="px-4 py-2.5"><StatusBadge status={p.status} /></td>
-                        <td className="px-4 py-2.5 text-muted-foreground text-[12px]">
-                          {format(new Date(p.updated_at), "dd.MM.yyyy")}
-                        </td>
-                      </tr>
-                    ))}
+                    {allProjects.slice(0, 5).map((p) => {
+                      const next = getNextStep(p);
+                      return (
+                        <tr key={p.id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-2.5 font-medium">
+                            <Link to={`/projects/${p.id}`} className="text-primary hover:underline">
+                              {p.name}
+                            </Link>
+                          </td>
+                          <td className="px-4 py-2.5"><StatusBadge status={p.status} /></td>
+                          <td className="px-4 py-2.5">
+                            {next && (
+                              <Badge variant="secondary" className={`text-[10px] font-medium border-0 ${next.color}`}>
+                                {next.label}
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="px-4 py-2.5 text-muted-foreground text-[12px]">
+                            {format(new Date(p.updated_at), "dd.MM.yyyy")}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               )}
