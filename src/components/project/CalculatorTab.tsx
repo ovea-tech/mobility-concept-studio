@@ -34,7 +34,6 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
   /* ── Ruleset aus project-Join lesen (kein separater Query nötig) ── */
   const packVersionData = project?.jurisdiction_pack_versions as any;
   const ruleset = packVersionData?.ruleset as any;
-  const rulesetLoading = false;
   const engineType = ruleset?.calculation_engine?.type;
   const rawBenchmarks = ruleset?.calculation_engine?.residential_benchmarks ?? [];
   const benchmarks: Array<{code: string; label: string; rate: number; included_in_mf: boolean}> =
@@ -44,6 +43,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       rate:           parseFloat(String(b?.rate ?? 0)),
       included_in_mf: b?.included_in_mf !== false && b?.included_in_mf !== 'false',
     })).filter(b => b.code !== '');
+  const rulesetLoading = !project?.jurisdiction_pack_versions || (ruleset != null && benchmarks.length === 0);
 
   /* ── Nutzungsarten ── */
   const { data: useTypes } = useQuery({
@@ -317,8 +317,8 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
                         </SelectTrigger>
                         <SelectContent>
                           {benchmarks.map((b) => (
-                            <SelectItem key={b.code} value={b.code} className="text-[12px]">
-                              {b.label}
+                            <SelectItem key={String(b.code)} value={String(b.code)} className="text-[12px]">
+                              {String(b.label)}
                             </SelectItem>
                           ))}
                         </SelectContent>
