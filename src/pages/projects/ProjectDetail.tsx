@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -32,11 +32,13 @@ import {
   MapPin, Lightbulb, ChevronLeft, ChevronDown, ChevronRight,
   Plus, ClipboardList, FileText, Calendar, Building2, Package,
   AlertCircle, Beaker, Target, Pencil, Trash2, Scale, BookOpen,
-  BarChart3, Upload, Paperclip,
+  BarChart3, Upload, Paperclip, Download, Calculator, Home,
+  Bell, GitBranch, ArrowRight, CheckCircle2,
 } from "lucide-react";
 import { CalculatorTab } from "@/components/project/CalculatorTab";
 import { ComplianceTab } from "@/components/project/ComplianceTab";
 import { FormblattViewer } from "@/components/project/FormblattViewer";
+import { WorkflowStepper, WORKFLOW_STEPS, type WorkflowStep } from "@/components/project/WorkflowStepper";
 
 /* ── shared styles ── */
 const tabClass =
@@ -97,6 +99,29 @@ const STATUS_TRANSITIONS: Record<string, { label: string; next: string }> = {
   active: { label: "Konzept finalisieren", next: "submitted" },
 };
 
+/* ── Next step button ── */
+function NextStepButton({ activeStep, setActiveStep, steps }: { activeStep: number; setActiveStep: (n: number) => void; steps: WorkflowStep[] }) {
+  if (activeStep >= steps.length - 1) return null;
+  const next = steps[activeStep + 1];
+  return (
+    <div className="mt-8 pt-4 border-t border-border flex justify-end">
+      <Button variant="outline" size="sm" className="h-8 text-[13px]" onClick={() => setActiveStep(activeStep + 1)}>
+        Weiter: {next.label} <ArrowRight className="h-3.5 w-3.5 ml-1" />
+      </Button>
+    </div>
+  );
+}
+
+/* ── Guidance card ── */
+function GuidanceCard({ icon: Icon, text }: { icon: React.ElementType; text: string }) {
+  return (
+    <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 rounded-md px-4 py-3 flex items-start gap-3 mb-4">
+      <Icon className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+      <p className="text-[12px] text-amber-700 dark:text-amber-400">{text}</p>
+    </div>
+  );
+}
+
 /* ══════════════════════════════════════════════
    MAIN WORKSPACE
    ══════════════════════════════════════════════ */
@@ -107,6 +132,11 @@ export default function ProjectDetail() {
   const [editProjectOpen, setEditProjectOpen] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+  const [activeSubTab, setActiveSubTab] = useState<string | null>(null);
+
+  const projectId = id!;
+
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
@@ -127,6 +157,74 @@ export default function ProjectDetail() {
     },
     enabled: !!id && id !== ":id",
   });
+
+  /* Data queries for step completion checks */
+  const { data: sitesData } = useQuery({
+    queryKey: ["project-sites", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("project_sites").select("id").eq("project_id", projectId);
+      return data ?? [];
+    },
+    enabled: !!project,
+  });
+  const { data: conceptsData } = useQuery({
+    queryKey: ["project-concepts", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("mobility_concepts").select("id").eq("project_id", projectId);
+      return data ?? [];
+    },
+    enabled: !!project,
+  });
+  const { data: scenariosData } = useQuery({
+    queryKey: ["scenarios", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("scenarios").select("id").eq("project_id", projectId);
+      return data ?? [];
+    },
+    enabled: !!project,
+  });
+  const { data: monitoringData } = useQuery({
+    queryKey: ["project-monitoring", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("monitoring_items").select("id").eq("project_id", projectId);
+      return data ?? [];
+    },
+    enabled: !!project,
+  });
+  const { data: outputPkgs } = useQuery({
+    queryKey: ["output_packages", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("output_packages").select("id").eq("project_id", projectId);
+      return data ?? [];
+    },
+    enabled: !!project,
+  });
+
+  /* Step completion logic */
+  const workflowSteps: WorkflowStep[] = useMemo(() => {
+    if (!project) return WORKFLOW_STEPS.map(s => ({ ...s, completed: false }));
+    return WORKFLOW_STEPS.map(s => ({
+      ...s,
+      completed:
+        s.id === 0 ? (sitesData?.length ?? 0) > 0 && (conceptsData?.length ?? 0) > 0 :
+        s.id === 1 ? project.mobility_factor != null :
+        s.id === 2 ? project.status === "submitted" || project.status === "approved" || (scenariosData?.length ?? 0) > 0 :
+        s.id === 3 ? (monitoringData?.length ?? 0) > 0 :
+        s.id === 4 ? (outputPkgs?.length ?? 0) > 0 :
+        false,
+    }));
+  }, [project, sitesData, conceptsData, scenariosData, monitoringData, outputPkgs]);
+
+  /* Get active tab based on step + sub-tab */
+  const currentStep = workflowSteps[activeStep] ?? workflowSteps[0];
+  const currentTab = activeSubTab && currentStep.tabs.includes(activeSubTab)
+    ? activeSubTab
+    : currentStep.tabs[0];
+
+  const handleStepClick = (stepId: number) => {
+    setActiveStep(stepId);
+    setActiveSubTab(null);
+  };
 
   const statusMutation = useMutation({
     mutationFn: async (newStatus: string) => {
@@ -152,7 +250,7 @@ export default function ProjectDetail() {
         <Skeleton className="h-6 w-64" />
         <Skeleton className="h-4 w-96" />
         <div className="flex gap-4 mt-6">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-8 w-20" />)}
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 w-20" />)}
         </div>
         <LoadingSkeleton rows={6} />
       </div>
@@ -180,6 +278,8 @@ export default function ProjectDetail() {
   const muniState = jpv?.jurisdiction_packs?.municipalities?.state;
   const packVersionLabel = jpv?.version_label || `v${jpv?.version_number ?? "?"}`;
   const transition = STATUS_TRANSITIONS[project.status];
+  const mf = project.mobility_factor != null ? Number(project.mobility_factor) : null;
+  const standardThreshold = (jpv?.ruleset as any)?.calculation_engine?.standard_threshold ?? 0.8;
 
   return (
     <div className="h-full flex flex-col">
@@ -193,6 +293,17 @@ export default function ProjectDetail() {
               </Button>
               <h1 className="text-[16px] font-semibold tracking-tight text-foreground">{project.name}</h1>
               <StatusBadge status={project.status} />
+              {/* FIX 6: MF Status Chip */}
+              {mf != null && (
+                <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium px-2 py-0.5 rounded-[4px] border ${
+                  mf >= standardThreshold
+                    ? "bg-green-50 border-green-300 text-green-800 dark:bg-green-950/20 dark:border-green-800 dark:text-green-300"
+                    : "bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-950/20 dark:border-amber-800 dark:text-amber-300"
+                }`}>
+                  MF&nbsp;=&nbsp;{mf.toFixed(2).replace(".", ",")}
+                  <span className="font-normal">{mf >= standardThreshold ? "Standard" : "Erweitert"}</span>
+                </span>
+              )}
               <ActionIcon icon={Pencil} onClick={() => setEditProjectOpen(true)} title="Projekt bearbeiten" />
             </div>
             {project.description && (
@@ -205,64 +316,106 @@ export default function ProjectDetail() {
               <MetaChip icon={Calendar} label={`Erstellt ${format(new Date(project.created_at), "dd.MM.yyyy")}`} />
             </div>
           </div>
-          {transition && (
-            <Button size="sm" className={`h-8 text-[13px] ${transition.next === 'submitted' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}`}
-              onClick={() => transition.next === 'submitted' ? setSubmitConfirmOpen(true) : statusMutation.mutate(transition.next)}
-              disabled={statusMutation.isPending}>
-              {statusMutation.isPending ? "…" : transition.label}
-            </Button>
-          )}
-          {project.status === 'submitted' && (
-            <Button size="sm" className="h-8 text-[13px]"
-              onClick={() => setApproveConfirmOpen(true)}
-              disabled={statusMutation.isPending}>
-              Als behördlich genehmigt markieren
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {/* FIX 4: Context buttons */}
+            {project.status === "active" && mf == null && (
+              <Button variant="outline" size="sm" className="h-8 text-[13px]"
+                onClick={() => { setActiveStep(1); setActiveSubTab("calculator"); }}>
+                <Calculator className="h-3.5 w-3.5 mr-1" /> MF berechnen
+              </Button>
+            )}
+            {(project.status === "submitted" || project.status === "approved") && (
+              <Button variant="outline" size="sm" className="h-8 text-[13px]"
+                onClick={() => { setActiveStep(4); setActiveSubTab("documents"); }}>
+                <Download className="h-3.5 w-3.5 mr-1" /> Formblatt
+              </Button>
+            )}
+            {transition && (
+              <Button size="sm" className={`h-8 text-[13px] ${transition.next === 'submitted' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}`}
+                onClick={() => transition.next === 'submitted' ? setSubmitConfirmOpen(true) : statusMutation.mutate(transition.next)}
+                disabled={statusMutation.isPending}>
+                {statusMutation.isPending ? "…" : transition.label}
+              </Button>
+            )}
+            {project.status === 'submitted' && (
+              <Button size="sm" className="h-8 text-[13px]"
+                onClick={() => setApproveConfirmOpen(true)}
+                disabled={statusMutation.isPending}>
+                Als behördlich genehmigt markieren
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Tabs */}
-      <Tabs defaultValue="overview" className="flex-1 flex flex-col">
-        <div className="border-b border-border bg-card px-6 overflow-x-auto">
-          <TabsList className="bg-transparent h-auto p-0 gap-0 flex-nowrap">
-            <TabsTrigger value="overview" className={tabClass}>Übersicht</TabsTrigger>
-            <TabsTrigger value="usetypes" className={tabClass}>Nutzungen & Bilanz</TabsTrigger>
-            <TabsTrigger value="calculator" className={tabClass}>Kalkulator</TabsTrigger>
-            <TabsTrigger value="compliance" className={tabClass}>Nachweisführung</TabsTrigger>
-            <TabsTrigger value="concepts" className={tabClass}>Konzepte</TabsTrigger>
-            <TabsTrigger value="scenarios" className={tabClass}>Szenarien & Maßnahmen</TabsTrigger>
-            <TabsTrigger value="monitoring" className={tabClass}>Monitoring</TabsTrigger>
-            <TabsTrigger value="documents" className={tabClass}>Dokumente</TabsTrigger>
-          </TabsList>
-        </div>
+      {/* Workflow Stepper */}
+      <WorkflowStepper steps={workflowSteps} activeStep={activeStep} onStepClick={handleStepClick} />
+
+      {/* Tabs (controlled) */}
+      <Tabs value={currentTab} onValueChange={(val) => setActiveSubTab(val)} className="flex-1 flex flex-col">
+        {/* Sub-tabs only if current step has multiple tabs */}
+        {currentStep.tabs.length > 1 && (
+          <div className="border-b border-border bg-card px-6 overflow-x-auto">
+            <TabsList className="bg-transparent h-auto p-0 gap-0 flex-nowrap">
+              {currentStep.tabs.map((tab) => {
+                const subLabel: Record<string, string> = {
+                  usetypes: "Nutzungen & Bilanz",
+                  calculator: "Kalkulator",
+                  compliance: "Nachweisführung",
+                  concepts: "Konzepte",
+                  scenarios: "Szenarien & Maßnahmen",
+                };
+                return (
+                  <TabsTrigger key={tab} value={tab} className={tabClass}>
+                    {subLabel[tab] ?? tab}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
+        )}
 
         <div className="flex-1 overflow-auto">
-          <TabsContent value="overview" className="p-6 mt-0"><OverviewTab projectId={project.id} /></TabsContent>
-          <TabsContent value="usetypes" className="p-6 mt-0"><UseTypesTab projectId={project.id} /></TabsContent>
-          <TabsContent value="calculator" className="p-6 mt-0"><CalculatorTab projectId={project.id} project={project} /></TabsContent>
-          <TabsContent value="compliance" className="p-6 mt-0"><ComplianceTab projectId={project.id} project={project} /></TabsContent>
-          <TabsContent value="concepts" className="p-6 mt-0"><ConceptsTab projectId={project.id} /></TabsContent>
-          <TabsContent value="scenarios" className="p-6 mt-0"><ScenariosTab projectId={project.id} /></TabsContent>
-          <TabsContent value="monitoring" className="p-6 mt-0"><MonitoringTab projectId={project.id} /></TabsContent>
-          <TabsContent value="documents" className="p-6 mt-0"><DocumentsTab projectId={project.id} project={project} /></TabsContent>
+          <TabsContent value="overview" className="p-6 mt-0">
+            <OverviewTab projectId={project.id} />
+            <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
+          </TabsContent>
+          <TabsContent value="usetypes" className="p-6 mt-0">
+            <UseTypesTab projectId={project.id} onNavigate={(tab) => { if (tab === "calculator") setActiveSubTab("calculator"); }} />
+            <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
+          </TabsContent>
+          <TabsContent value="calculator" className="p-6 mt-0">
+            <CalculatorTab projectId={project.id} project={project} onNavigate={(tab) => {
+              if (tab === "compliance") { setActiveStep(2); setActiveSubTab("compliance"); }
+              else if (tab === "scenarios") { setActiveStep(2); setActiveSubTab("scenarios"); }
+            }} />
+            <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
+          </TabsContent>
+          <TabsContent value="compliance" className="p-6 mt-0">
+            <ComplianceTab projectId={project.id} project={project} />
+            <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
+          </TabsContent>
+          <TabsContent value="concepts" className="p-6 mt-0">
+            <ConceptsTab projectId={project.id} />
+            <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
+          </TabsContent>
+          <TabsContent value="scenarios" className="p-6 mt-0">
+            <ScenariosTab projectId={project.id} />
+            <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
+          </TabsContent>
+          <TabsContent value="monitoring" className="p-6 mt-0">
+            <MonitoringTab projectId={project.id} />
+            <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
+          </TabsContent>
+          <TabsContent value="documents" className="p-6 mt-0">
+            <DocumentsTab projectId={project.id} project={project} />
+          </TabsContent>
         </div>
       </Tabs>
 
       <EditProjectDialog open={editProjectOpen} onOpenChange={setEditProjectOpen} project={project} />
-
-      <SubmitConfirmDialog
-        open={submitConfirmOpen}
-        onOpenChange={setSubmitConfirmOpen}
-        projectId={project.id}
-        statusMutation={statusMutation}
-      />
-      <ApproveConfirmDialog
-        open={approveConfirmOpen}
-        onOpenChange={setApproveConfirmOpen}
-        projectId={project.id}
-        statusMutation={statusMutation}
-      />
+      <SubmitConfirmDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen} projectId={project.id} statusMutation={statusMutation} />
+      <ApproveConfirmDialog open={approveConfirmOpen} onOpenChange={setApproveConfirmOpen} projectId={project.id} statusMutation={statusMutation} />
     </div>
   );
 }
@@ -476,7 +629,7 @@ function OverviewTab({ projectId }: { projectId: string }) {
 /* ══════════════════════════════════════════════
    USE TYPES TAB (P2)
    ══════════════════════════════════════════════ */
-function UseTypesTab({ projectId }: { projectId: string }) {
+function UseTypesTab({ projectId, onNavigate }: { projectId: string; onNavigate?: (tab: string) => void }) {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -513,10 +666,20 @@ function UseTypesTab({ projectId }: { projectId: string }) {
       </TabToolbar>
       {isLoading ? <LoadingSkeleton /> :
        !useTypes?.length ? (
-        <EmptyState icon={BarChart3} title="Noch keine Nutzungsarten erfasst"
-          description="Legen Sie die Nutzungsarten an, um die Stellplatzbilanz zu berechnen."
-          action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Nutzung anlegen</Button>}
-        />
+        /* FIX 3: Enhanced empty state */
+        <div className="border border-border rounded-md bg-card p-6 text-center space-y-3">
+          <Home className="h-8 w-8 text-muted-foreground mx-auto" />
+          <div>
+            <p className="text-[14px] font-medium text-foreground">Noch keine Nutzungsarten erfasst</p>
+            <p className="text-[12px] text-muted-foreground mt-1 max-w-md mx-auto">
+              Tragen Sie die Wohnungstypen Ihres Vorhabens ein – z.B. 60 Wohneinheiten München Modell Miete (MMM).
+              Der Kalkulator berechnet daraus automatisch den Stellplatzbedarf.
+            </p>
+          </div>
+          <Button size="sm" className="text-[13px]" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Nutzungsart anlegen
+          </Button>
+        </div>
       ) : (
         <>
         <Table>
@@ -722,10 +885,19 @@ function ScenariosTab({ projectId }: { projectId: string }) {
       </TabToolbar>
       {isLoading ? <LoadingSkeleton /> :
        !scenarios?.length ? (
-        <EmptyState icon={Beaker} title="Keine Szenarien vorhanden"
-          description="Erstellen Sie ein Szenario, um Maßnahmen zu definieren."
-          action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateScenarioOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Szenario erstellen</Button>}
-        />
+        /* FIX 3: Enhanced empty state */
+        <div className="border border-border rounded-md bg-card p-6 text-center space-y-3">
+          <GitBranch className="h-8 w-8 text-muted-foreground mx-auto" />
+          <div>
+            <p className="text-[14px] font-medium text-foreground">Noch keine Szenarien</p>
+            <p className="text-[12px] text-muted-foreground mt-1 max-w-md mx-auto">
+              Szenarien beschreiben verschiedene Reduktionsstrategien. Beginnen Sie mit dem Basis-Szenario.
+            </p>
+          </div>
+          <Button size="sm" className="text-[13px]" onClick={() => setCreateScenarioOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Erstes Szenario anlegen
+          </Button>
+        </div>
       ) : (
         <div className="space-y-3">
           {scenarios.map((scenario) => (
@@ -757,7 +929,6 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
     enabled: open,
   });
 
-  // Justifications for this scenario's measures
   const { data: justifications } = useQuery({
     queryKey: ["justifications", projectId, scenario.id],
     queryFn: async () => {
@@ -770,7 +941,6 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
     enabled: open && !!measures?.length,
   });
 
-  // Assumptions for this scenario
   const { data: assumptions } = useQuery({
     queryKey: ["assumptions", scenario.id],
     queryFn: async () => {
@@ -835,7 +1005,6 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="border-t border-border px-4 py-3">
-            {/* Measures */}
             <div className="flex items-center justify-between mb-3">
               <span className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">Maßnahmen</span>
               <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => setCreateMeasureOpen(true)}>
@@ -878,12 +1047,10 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
                       </TableRow>
                     </React.Fragment>
                   ))}
-
                 </TableBody>
               </Table>
             )}
 
-            {/* Measure Aggregation */}
             {measures && measures.length > 0 && (() => {
               const spSum = measures.reduce((s, m) => s + (m.reduction_unit === "Stellplätze" && m.reduction_value ? Number(m.reduction_value) : 0), 0);
               const pctSum = measures.reduce((s, m) => s + (m.reduction_unit === "%" && m.reduction_value ? Number(m.reduction_value) : 0), 0);
@@ -901,7 +1068,6 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
               <JustificationsSection projectId={projectId} scenarioMeasures={measures ?? []} />
             )}
 
-            {/* Assumptions (P3) */}
             {open && (
               <AssumptionsSection projectId={projectId} scenarioId={scenario.id} assumptions={assumptions ?? []} />
             )}
@@ -1187,10 +1353,20 @@ function MonitoringTab({ projectId }: { projectId: string }) {
       </TabToolbar>
       {isLoading ? <LoadingSkeleton /> :
        !items?.length ? (
-        <EmptyState icon={ClipboardList} title="Keine Monitoring-Einträge"
-          description="Legen Sie Monitoring-Einträge an, um Fristen und Nachweise zu verfolgen."
-          action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Eintrag anlegen</Button>}
-        />
+        /* FIX 3: Enhanced empty state */
+        <div className="border border-border rounded-md bg-card p-6 text-center space-y-3">
+          <Bell className="h-8 w-8 text-muted-foreground mx-auto" />
+          <div>
+            <p className="text-[14px] font-medium text-foreground">Monitoring-Intervalle noch nicht angelegt</p>
+            <p className="text-[12px] text-muted-foreground mt-1 max-w-md mx-auto">
+              Laut Regelwerk sind Monitoring-Berichte nach 1, 4, 7 und 10 Jahren nach Nutzungsaufnahme einzureichen.
+              Legen Sie jetzt die Fristen an.
+            </p>
+          </div>
+          <Button size="sm" className="text-[13px]" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Monitoring-Eintrag anlegen
+          </Button>
+        </div>
       ) : (
         <Table>
           <TableHeader><TableRow>
@@ -1307,6 +1483,22 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
               Für diese Kommune ist noch kein digitales Formblatt hinterlegt. Bitte laden Sie das Formblatt manuell von der zuständigen Behörde herunter.
             </p>
           </div>
+        </div>
+      )}
+
+      {/* FIX 3: Enhanced empty state for documents */}
+      {isFormSupported && canGenerateFormblatt && !outputPackages?.length && !opLoading && (
+        <div className="border border-border rounded-md bg-card p-6 text-center space-y-3">
+          <FileText className="h-8 w-8 text-muted-foreground mx-auto" />
+          <div>
+            <p className="text-[14px] font-medium text-foreground">Bereit zur Einreichung</p>
+            <p className="text-[12px] text-muted-foreground mt-1 max-w-md mx-auto">
+              Das Konzept ist finalisiert. Bereiten Sie jetzt das offizielle LBK-Formblatt vor – alle Daten werden automatisch eingetragen.
+            </p>
+          </div>
+          <Button size="sm" className="text-[13px]" onClick={() => setShowFormblatt(true)}>
+            <FileText className="h-3.5 w-3.5 mr-1" /> Formblatt vorbereiten
+          </Button>
         </div>
       )}
 
