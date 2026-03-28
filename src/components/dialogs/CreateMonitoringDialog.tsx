@@ -19,6 +19,7 @@ export function CreateMonitoringDialog({ open, onOpenChange, projectId }: Props)
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [status, setStatus] = useState("pending");
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -26,6 +27,7 @@ export function CreateMonitoringDialog({ open, onOpenChange, projectId }: Props)
         title: title.trim(),
         description: description.trim() || null,
         due_date: dueDate || null,
+        status: status as any,
         project_id: projectId,
       });
       if (error) throw error;
@@ -37,6 +39,7 @@ export function CreateMonitoringDialog({ open, onOpenChange, projectId }: Props)
       setTitle("");
       setDescription("");
       setDueDate("");
+      setStatus("pending");
     },
     onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
   });
@@ -51,6 +54,14 @@ export function CreateMonitoringDialog({ open, onOpenChange, projectId }: Props)
           <div className="space-y-1.5">
             <Label className="text-[13px]">Titel *</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="z. B. Carsharing-Nachweis Q3" className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Status</Label>
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-[13px]">
+              <option value="pending">Ausstehend</option>
+              <option value="in_progress">In Bearbeitung</option>
+              <option value="non_compliant">Nicht konform</option>
+            </select>
           </div>
           <div className="space-y-1.5">
             <Label className="text-[13px]">Fälligkeitsdatum</Label>
