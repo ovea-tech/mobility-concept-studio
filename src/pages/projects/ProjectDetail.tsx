@@ -1264,6 +1264,9 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
   });
 
   const canGenerateFormblatt = project?.status === "submitted" || project?.status === "approved";
+  const ruleset = (project?.jurisdiction_pack_versions as any)?.ruleset;
+  const formTemplateId = ruleset?.submission?.form_template_id;
+  const isFormSupported = formTemplateId === "munich_lbk_2023" || !formTemplateId;
 
   if (showFormblatt) {
     return (
@@ -1282,18 +1285,32 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
   return (
     <div className="space-y-6">
       <TabToolbar label="Dokumente & Formulare">
-        <Button
-          size="sm"
-          className="h-8 text-[13px]"
-          disabled={!canGenerateFormblatt}
-          onClick={() => setShowFormblatt(true)}
-          title={!canGenerateFormblatt ? "Erst Konzept finalisieren" : undefined}
-        >
-          <FileText className="h-3.5 w-3.5 mr-1.5" /> Formblatt vorbereiten
-        </Button>
+        {isFormSupported ? (
+          <Button
+            size="sm"
+            className="h-8 text-[13px]"
+            disabled={!canGenerateFormblatt}
+            onClick={() => setShowFormblatt(true)}
+            title={!canGenerateFormblatt ? "Erst Konzept finalisieren" : undefined}
+          >
+            <FileText className="h-3.5 w-3.5 mr-1.5" /> Formblatt vorbereiten
+          </Button>
+        ) : null}
       </TabToolbar>
 
-      {!canGenerateFormblatt && (
+      {!isFormSupported && (
+        <div className="rounded-md border border-border bg-accent/30 p-4 flex items-start gap-3">
+          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div>
+            <p className="text-[13px] font-medium text-foreground">Kein digitales Formblatt verfügbar</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              Für diese Kommune ist noch kein digitales Formblatt hinterlegt. Bitte laden Sie das Formblatt manuell von der zuständigen Behörde herunter.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isFormSupported && !canGenerateFormblatt && (
         <div className="rounded-md border border-border bg-muted/30 p-3">
           <p className="text-[12px] text-muted-foreground">
             Das LBK-Formblatt kann erst nach Finalisierung des Konzepts erstellt werden.
