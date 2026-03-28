@@ -159,8 +159,9 @@ export function FormblattViewer({ project, useTypes, sites, measures, onClose }:
     setError(null);
     try {
       const bytes = await generatePdf();
-      setPdfBytes(bytes);
-      const blob = new Blob([bytes], { type: "application/pdf" });
+      const bytesCopy = new Uint8Array(bytes);
+      setPdfBytes(bytesCopy);
+      const blob = new Blob([bytesCopy.buffer as ArrayBuffer], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
       setPdfUrl(url);
     } catch (err: any) {
@@ -182,7 +183,7 @@ export function FormblattViewer({ project, useTypes, sites, measures, onClose }:
     if (!pdfBytes) return;
     const filename = "MK_" + project.name.replace(/[^a-zA-Z0-9]/g, "_") + "_" + new Date().toISOString().slice(0, 10) + ".pdf";
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([pdfBytes], { type: "application/pdf" }));
+    a.href = URL.createObjectURL(new Blob([pdfBytes.buffer as ArrayBuffer], { type: "application/pdf" }));
     a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
@@ -234,7 +235,7 @@ export function FormblattViewer({ project, useTypes, sites, measures, onClose }:
         <span className="text-[13px] font-medium text-foreground truncate">
           LBK München – Mobilitätskonzept Formblatt (Stand September 2023)
         </span>
-        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 text-[11px] shrink-0 mx-4">
+        <Badge variant="outline" className="bg-accent text-accent-foreground border-border text-[11px] shrink-0 mx-4">
           Bitte alle Angaben prüfen und ggf. anpassen
         </Badge>
         <div className="flex items-center gap-2 shrink-0">
