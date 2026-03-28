@@ -331,64 +331,28 @@ function ConceptsTab({ projectId }: { projectId: string }) {
 function ScenariosTab({ projectId }: { projectId: string }) {
   const [createScenarioOpen, setCreateScenarioOpen] = useState(false);
 
-  // Load concepts for the create dialog
-  const { data: concepts } = useQuery({
-    queryKey: ["project-concepts", projectId],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("mobility_concepts").select("id, name").eq("project_id", projectId).order("created_at");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  // Load concept_versions for this project's concepts
-  const { data: conceptVersions } = useQuery({
-    queryKey: ["project-concept-versions", projectId],
-    queryFn: async () => {
-      if (!concepts?.length) return [];
-      const conceptIds = concepts.map((c) => c.id);
-      const { data, error } = await supabase
-        .from("concept_versions")
-        .select("id, concept_id, version_number, status")
-        .in("concept_id", conceptIds)
-        .order("version_number", { ascending: false });
-      if (error) throw error;
-      return data;
-    },
-    enabled: !!concepts?.length,
-  });
-
-  // Load scenarios via concept_versions
   const { data: scenarios, isLoading } = useQuery({
-    queryKey: ["project-scenarios", projectId],
+    queryKey: ["scenarios", projectId],
     queryFn: async () => {
-      if (!conceptVersions?.length) return [];
-      const cvIds = conceptVersions.map((cv) => cv.id);
       const { data, error } = await supabase
         .from("scenarios")
         .select("*")
         .eq("project_id", projectId)
-        .in("concept_version_id", cvIds)
-        .order("created_at");
+        .order("created_at", { ascending: true });
       if (error) throw error;
       return data;
     },
-    enabled: !!conceptVersions?.length,
   });
 
   return (
     <>
       <TabToolbar label="Szenarien" count={scenarios?.length}>
-        <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateScenarioOpen(true)}
-          disabled={!conceptVersions?.length}>
+        <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateScenarioOpen(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Szenario anlegen
         </Button>
       </TabToolbar>
 
-      {!concepts?.length ? (
-        <EmptyState icon={Beaker} title="Zuerst ein Konzept anlegen"
-          description="Szenarien werden innerhalb von Konzepten erstellt. Legen Sie zuerst ein Mobilitätskonzept an." />
-      ) : isLoading ? <LoadingSkeleton /> :
+      {isLoading ? <LoadingSkeleton /> :
        !scenarios?.length ? (
         <EmptyState icon={Beaker} title="Keine Szenarien vorhanden"
           description="Erstellen Sie ein Szenario, um Maßnahmen zu definieren."
@@ -406,8 +370,6 @@ function ScenariosTab({ projectId }: { projectId: string }) {
         open={createScenarioOpen}
         onOpenChange={setCreateScenarioOpen}
         projectId={projectId}
-        conceptVersions={conceptVersions ?? []}
-        concepts={concepts ?? []}
       />
     </>
   );
@@ -683,41 +645,31 @@ function CreateConceptDialog({ open, onOpenChange, projectId }: { open: boolean;
 /* ══════════════════════════════════════════════
    CREATE SCENARIO DIALOG
    ══════════════════════════════════════════════ */
-function CreateScenarioDialog({ open, onOpenChange, projectId, conceptVersions, concepts }: {
+function CreateScenarioDialog({ open, onOpenChange, projectId }: {
   open: boolean; onOpenChange: (v: boolean) => void; projectId: string;
-  conceptVersions: { id: string; concept_id: string; version_number: number; status: string }[];
-  concepts: { id: string; name: string }[];
 }) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [conceptVersionId, setConceptVersionId] = useState("");
   const [isBaseline, setIsBaseline] = useState(false);
 
   const mutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("scenarios").insert({
         project_id: projectId,
-        concept_version_id: conceptVersionId,
         name: name.trim(),
         description: description.trim() || null,
         is_baseline: isBaseline,
-      });
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-scenarios", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["scenarios", projectId] });
       toast.success("Szenario wurde angelegt");
       onOpenChange(false);
-      setName(""); setDescription(""); setConceptVersionId(""); setIsBaseline(false);
+      setName(""); setDescription(""); setIsBaseline(false);
     },
     onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
-  });
-
-  // Build display options: conceptName + version
-  const options = conceptVersions.map((cv) => {
-    const concept = concepts.find((c) => c.id === cv.concept_id);
-    return { id: cv.id, label: `${concept?.name ?? "–"} – v${cv.version_number}` };
   });
 
   return (
@@ -725,17 +677,6 @@ function CreateScenarioDialog({ open, onOpenChange, projectId, conceptVersions, 
       <DialogContent className="sm:max-w-md">
         <DialogHeader><DialogTitle className="text-[15px]">Neues Szenario anlegen</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-1.5">
-            <Label className="text-[13px]">Konzept-Version *</Label>
-            <Select value={conceptVersionId} onValueChange={setConceptVersionId}>
-              <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Konzept-Version wählen" /></SelectTrigger>
-              <SelectContent>
-                {options.map((o) => (
-                  <SelectItem key={o.id} value={o.id} className="text-[13px]">{o.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
           <div className="space-y-1.5">
             <Label className="text-[13px]">Name *</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Szenario Basis" className="h-9 text-[13px]" />
@@ -746,12 +687,12 @@ function CreateScenarioDialog({ open, onOpenChange, projectId, conceptVersions, 
           </div>
           <div className="flex items-center gap-2">
             <Checkbox id="is-baseline" checked={isBaseline} onCheckedChange={(v) => setIsBaseline(v === true)} />
-            <Label htmlFor="is-baseline" className="text-[13px]">Basisszenario</Label>
+            <Label htmlFor="is-baseline" className="text-[13px]">Als Baseline markieren</Label>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
-          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || !conceptVersionId || mutation.isPending} className="text-[13px]">
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
             {mutation.isPending ? "Erstellt…" : "Szenario erstellen"}
           </Button>
         </DialogFooter>
