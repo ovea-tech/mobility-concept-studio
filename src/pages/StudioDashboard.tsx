@@ -12,41 +12,45 @@ import { format } from "date-fns";
 export default function StudioDashboard() {
   const navigate = useNavigate();
 
-  const { data: muniCount, isLoading: muniLoading } = useQuery({
+  const { data: muniData, isLoading: muniLoading } = useQuery({
     queryKey: ["studio-muni-count"],
     queryFn: async () => {
-      const { count, error } = await supabase.from("municipalities").select("id", { count: "exact", head: true });
+      const { data, error } = await supabase.from("municipalities").select("id");
       if (error) throw error;
-      return count ?? 0;
+      return data;
     },
   });
+  const muniCount = muniData?.length ?? 0;
 
-  const { data: activePackCount, isLoading: packLoading } = useQuery({
+  const { data: activePackData, isLoading: packLoading } = useQuery({
     queryKey: ["studio-active-pack-count"],
     queryFn: async () => {
-      const { count, error } = await supabase.from("jurisdiction_packs").select("id", { count: "exact", head: true }).eq("status", "released");
+      const { data, error } = await supabase.from("jurisdiction_packs").select("id").eq("status", "released");
       if (error) throw error;
-      return count ?? 0;
+      return data;
     },
   });
+  const activePackCount = activePackData?.length ?? 0;
 
-  const { data: candidateCount, isLoading: candLoading } = useQuery({
+  const { data: candidateData, isLoading: candLoading } = useQuery({
     queryKey: ["studio-candidate-count"],
     queryFn: async () => {
-      const { count, error } = await supabase.from("rule_candidates").select("id", { count: "exact", head: true }).in("status", ["candidate", "draft"]);
+      const { data, error } = await supabase.from("rule_candidates").select("id").in("status", ["candidate", "draft"]);
       if (error) throw error;
-      return count ?? 0;
+      return data;
     },
   });
+  const candidateCount = candidateData?.length ?? 0;
 
-  const { data: ruleCount, isLoading: ruleLoading } = useQuery({
+  const { data: ruleData, isLoading: ruleLoading } = useQuery({
     queryKey: ["studio-rule-count"],
     queryFn: async () => {
-      const { count, error } = await supabase.from("rules").select("id", { count: "exact", head: true });
+      const { data, error } = await supabase.from("rules").select("id");
       if (error) throw error;
-      return count ?? 0;
+      return data;
     },
   });
+  const ruleCount = ruleData?.length ?? 0;
 
   const { data: recentPacks, isLoading: packsListLoading } = useQuery({
     queryKey: ["studio-recent-packs"],

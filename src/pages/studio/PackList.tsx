@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -74,7 +74,7 @@ export default function PackList() {
                 const muniName = p.municipalities && !Array.isArray(p.municipalities) ? p.municipalities.name : "–";
                 return (
                   <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/studio/packs/${p.id}`)}>
-                    <TableCell className="font-medium text-[13px]">{p.name}</TableCell>
+                    <TableCell className="font-medium text-[13px]"><Link to={`/studio/packs/${p.id}`} className="text-primary hover:underline" onClick={(e) => e.stopPropagation()}>{p.name}</Link></TableCell>
                     <TableCell className="text-[12px] text-muted-foreground">{muniName}</TableCell>
                     <TableCell><StatusBadge status={p.status} /></TableCell>
                     <TableCell className="text-[12px] text-muted-foreground">{versions.length}</TableCell>
