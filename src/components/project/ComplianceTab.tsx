@@ -39,13 +39,13 @@ export function ComplianceTab({ projectId, project }: ComplianceTabProps) {
       if (!obj) return;
       if (typeof obj === "object" && !Array.isArray(obj)) {
         Object.entries(obj).forEach(([key, val]) => {
-          if (typeof val === "string") {
+          if (typeof val === "string" && val.length > 0) {
             items.push({ id: `${section}-${key}`, label: val, section, extended });
-          } else if (typeof val === "object" && val !== null) {
+          } else if (typeof val === "object" && val !== null && !Array.isArray(val)) {
             const nested = val as any;
-            if (nested.label) {
+            if (typeof nested.label === "string" && nested.label.length > 0) {
               items.push({ id: `${section}-${key}`, label: nested.label, section, extended });
-            } else if (nested.description) {
+            } else if (typeof nested.description === "string" && nested.description.length > 0) {
               items.push({ id: `${section}-${key}`, label: nested.description, section, extended });
             }
           }
