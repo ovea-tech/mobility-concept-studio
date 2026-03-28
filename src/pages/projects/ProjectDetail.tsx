@@ -1953,6 +1953,64 @@ function SubmitConfirmDialog({ open, onOpenChange, projectId, statusMutation }: 
 }
 
 /* ══════════════════════════════════════════════
+   APPROVE CONFIRM DIALOG
+   ══════════════════════════════════════════════ */
+function ApproveConfirmDialog({ open, onOpenChange, projectId, statusMutation }: {
+  open: boolean; onOpenChange: (v: boolean) => void; projectId: string; statusMutation: any;
+}) {
+  const [aktenzeichen, setAktenzeichen] = useState("");
+  const [isPending, setIsPending] = useState(false);
+  const queryClient = useQueryClient();
+
+  const handleApprove = async () => {
+    setIsPending(true);
+    try {
+      const updateData: any = { status: "approved" as any };
+      if (aktenzeichen.trim()) {
+        updateData.description = aktenzeichen.trim();
+      }
+      const { error } = await supabase.from("projects").update(updateData).eq("id", projectId);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["project", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+      toast.success("Behördliche Genehmigung bestätigt");
+      onOpenChange(false);
+    } catch (err: any) {
+      toast.error("Fehler: " + (err.message || "Unbekannt"));
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle className="text-[15px]">Behördliche Genehmigung bestätigen?</AlertDialogTitle>
+          <AlertDialogDescription className="text-[13px]">
+            Bitte bestätigen Sie, dass das Mobilitätskonzept durch die zuständige Behörde genehmigt wurde. Tragen Sie ggf. das Aktenzeichen ein.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="py-2">
+          <Input
+            placeholder="Aktenzeichen der Lokalbaukommission (optional)"
+            value={aktenzeichen}
+            onChange={(e) => setAktenzeichen(e.target.value)}
+            className="h-9 text-[13px]"
+          />
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
+          <AlertDialogAction onClick={handleApprove} disabled={isPending} className="text-[13px]">
+            {isPending ? "Wird bestätigt…" : "Genehmigung bestätigen"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
    SNAPSHOTS SECTION (in Overview tab)
    ══════════════════════════════════════════════ */
 function SnapshotsSection({ projectId }: { projectId: string }) {
