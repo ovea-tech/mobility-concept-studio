@@ -2,243 +2,174 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { StatusBadge } from "@/components/shared/StatusBadge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import {
-  MapPin, Package, Scale, CheckCircle, Rocket, ScrollText, Plus, FlaskConical,
+  MapPin, Package, Scale, FileSearch, Plus, Rocket,
 } from "lucide-react";
 import { format } from "date-fns";
 
 export default function StudioDashboard() {
   const navigate = useNavigate();
 
-  const { data: municipalities } = useQuery({
-    queryKey: ["municipalities"],
+  const { data: muniCount, isLoading: muniLoading } = useQuery({
+    queryKey: ["studio-muni-count"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("municipalities").select("id").limit(1000);
+      const { count, error } = await supabase.from("municipalities").select("id", { count: "exact", head: true });
       if (error) throw error;
-      return data;
+      return count ?? 0;
     },
   });
 
-  const { data: packs } = useQuery({
-    queryKey: ["studio-packs-summary"],
+  const { data: activePackCount, isLoading: packLoading } = useQuery({
+    queryKey: ["studio-active-pack-count"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("jurisdiction_packs").select("id, status").limit(1000);
+      const { count, error } = await supabase.from("jurisdiction_packs").select("id", { count: "exact", head: true }).eq("status", "released");
       if (error) throw error;
-      return data;
+      return count ?? 0;
     },
   });
 
-  const { data: reviews } = useQuery({
-    queryKey: ["studio-reviews"],
+  const { data: candidateCount, isLoading: candLoading } = useQuery({
+    queryKey: ["studio-candidate-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase.from("rule_candidates").select("id", { count: "exact", head: true }).in("status", ["candidate", "draft"]);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: ruleCount, isLoading: ruleLoading } = useQuery({
+    queryKey: ["studio-rule-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase.from("rules").select("id", { count: "exact", head: true });
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: recentPacks, isLoading: packsListLoading } = useQuery({
+    queryKey: ["studio-recent-packs"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("pack_reviews")
-        .select("*, jurisdiction_pack_versions(version_label, pack_id, jurisdiction_packs(name))")
-        .eq("status", "pending")
+        .from("jurisdiction_packs")
+        .select("id, name, status, created_at, municipalities(name)")
         .order("created_at", { ascending: false })
-        .limit(10);
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: releases } = useQuery({
-    queryKey: ["studio-releases"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("pack_releases")
-        .select("*, jurisdiction_pack_versions(version_label, jurisdiction_packs(name))")
-        .order("released_at", { ascending: false })
         .limit(5);
       if (error) throw error;
       return data;
     },
   });
 
-  const { data: failedTests } = useQuery({
-    queryKey: ["studio-failed-tests"],
+  const { data: recentCandidates, isLoading: candListLoading } = useQuery({
+    queryKey: ["studio-recent-candidates"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("pack_test_runs")
-        .select("*, pack_test_cases(name)")
-        .eq("passed", false)
-        .order("run_at", { ascending: false })
+        .from("rule_candidates")
+        .select("id, title, status, created_at")
+        .order("created_at", { ascending: false })
         .limit(5);
       if (error) throw error;
       return data;
     },
   });
-
-  const { data: auditEvents } = useQuery({
-    queryKey: ["studio-audit"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("audit_events")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(8);
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const packList = packs ?? [];
-  const packsByStatus = {
-    draft: packList.filter((p) => p.status === "draft").length,
-    in_review: packList.filter((p) => p.status === "in_review").length,
-    released: packList.filter((p) => p.status === "released").length,
-  };
 
   return (
     <div>
       <div className="border-b border-border bg-card px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-foreground">Pack Studio & Verwaltung</h1>
-            <p className="text-[13px] text-muted-foreground mt-0.5">Regelpflege, Reviews und Plattformsteuerung</p>
+            <h1 className="text-lg font-semibold text-foreground">Pack Studio</h1>
+            <p className="text-[13px] text-muted-foreground mt-0.5">Regelpflege, Kommunen und Plattformsteuerung</p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="h-8 text-[13px]" onClick={() => navigate("/studio/municipalities/new")}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Kommune
+            <Button variant="outline" size="sm" className="h-8 text-[13px]" onClick={() => navigate("/studio/municipalities")}>
+              <MapPin className="h-3.5 w-3.5 mr-1" /> Kommunen
             </Button>
-            <Button size="sm" className="h-8 text-[13px]" onClick={() => navigate("/studio/packs/new")}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Regelpaket
+            <Button size="sm" className="h-8 text-[13px]" onClick={() => navigate("/studio/packs")}>
+              <Package className="h-3.5 w-3.5 mr-1" /> Regelpakete
             </Button>
           </div>
         </div>
       </div>
 
       <div className="p-6 space-y-6">
-        {/* Stats row */}
-        <div className="grid grid-cols-5 gap-3">
-          <StatCard label="Kommunen" value={municipalities?.length ?? 0} />
-          <StatCard label="Regelpakete" value={packList.length} />
-          <StatCard label="Entwurf" value={packsByStatus.draft} />
-          <StatCard label="In Prüfung" value={packsByStatus.in_review} />
-          <StatCard label="Veröffentlicht" value={packsByStatus.released} />
+        {/* Stats */}
+        <div className="grid grid-cols-4 gap-3">
+          <StatCard label="Kommunen" value={muniCount ?? 0} loading={muniLoading} />
+          <StatCard label="Aktive Packs" value={activePackCount ?? 0} loading={packLoading} />
+          <StatCard label="Offene Kandidaten" value={candidateCount ?? 0} loading={candLoading} />
+          <StatCard label="Regeln gesamt" value={ruleCount ?? 0} loading={ruleLoading} />
         </div>
 
-        <div className="grid grid-cols-3 gap-6">
-          {/* Main content */}
-          <div className="col-span-2 space-y-6">
-            {/* Open reviews */}
-            <div>
-              <SectionHeader icon={CheckCircle} title="Offene Pack-Reviews" />
-              <div className="border border-border rounded-md bg-card overflow-hidden">
-                {!reviews?.length ? (
-                  <EmptySection text="Keine offenen Reviews." />
-                ) : (
-                  <div className="divide-y divide-border">
-                    {reviews.map((r) => {
-                      const jpv = r.jurisdiction_pack_versions as any;
-                      const packName = jpv?.jurisdiction_packs?.name ?? "–";
-                      return (
-                        <div key={r.id} className="px-4 py-2.5 flex items-center justify-between">
-                          <div>
-                            <div className="text-[13px] font-medium">{packName}</div>
-                            <div className="text-[11px] text-muted-foreground">
-                              Version {jpv?.version_label ?? "–"} · Erstellt {format(new Date(r.created_at), "dd.MM.yyyy")}
-                            </div>
-                          </div>
-                          <StatusBadge status={r.status} />
+        <div className="grid grid-cols-2 gap-6">
+          {/* Recent packs */}
+          <div>
+            <SectionHeader icon={Package} title="Letzte Regelpakete" />
+            <div className="border border-border rounded-md bg-card overflow-hidden">
+              {packsListLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                </div>
+              ) : !recentPacks?.length ? (
+                <EmptySection text="Keine Regelpakete vorhanden." />
+              ) : (
+                <div className="divide-y divide-border">
+                  {recentPacks.map((p) => {
+                    const muniName = p.municipalities && !Array.isArray(p.municipalities) ? p.municipalities.name : "–";
+                    return (
+                      <div
+                        key={p.id}
+                        className="px-4 py-2.5 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
+                        onClick={() => navigate(`/studio/packs/${p.id}`)}
+                      >
+                        <div>
+                          <div className="text-[13px] font-medium">{p.name}</div>
+                          <div className="text-[11px] text-muted-foreground">{muniName} · {format(new Date(p.created_at), "dd.MM.yyyy")}</div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Failed tests */}
-            <div>
-              <SectionHeader icon={FlaskConical} title="Fehlgeschlagene Tests" />
-              <div className="border border-border rounded-md bg-card overflow-hidden">
-                {!failedTests?.length ? (
-                  <EmptySection text="Keine fehlgeschlagenen Tests." />
-                ) : (
-                  <div className="divide-y divide-border">
-                    {failedTests.map((t) => (
-                      <div key={t.id} className="px-4 py-2.5">
-                        <div className="text-[13px] font-medium">{(t.pack_test_cases as any)?.name ?? "–"}</div>
-                        <div className="text-[11px] text-muted-foreground truncate max-w-lg">
-                          {t.error_message || "Fehlgeschlagen"}
-                        </div>
+                        <StatusBadge status={p.status} />
                       </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Audit */}
-            <div>
-              <SectionHeader icon={ScrollText} title="Letzte Audit-Events" />
-              <div className="border border-border rounded-md bg-card overflow-hidden">
-                {!auditEvents?.length ? (
-                  <EmptySection text="Keine Audit-Events." />
-                ) : (
-                  <table className="w-full text-[13px]">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/30">
-                        <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Aktion</th>
-                        <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Entität</th>
-                        <th className="text-left px-4 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Zeitpunkt</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {auditEvents.map((e) => (
-                        <tr key={e.id} className="border-b border-border last:border-0">
-                          <td className="px-4 py-2">{e.action}</td>
-                          <td className="px-4 py-2 text-muted-foreground">{e.entity_type}</td>
-                          <td className="px-4 py-2 text-muted-foreground text-[12px]">
-                            {format(new Date(e.created_at), "dd.MM.yyyy HH:mm")}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Right sidebar */}
-          <div className="space-y-6">
-            <div>
-              <SectionHeader icon={Rocket} title="Schnellaktionen" />
-              <div className="space-y-1.5">
-                <QuickAction label="Kommune anlegen" onClick={() => navigate("/studio/municipalities/new")} />
-                <QuickAction label="Regelpaket anlegen" onClick={() => navigate("/studio/packs/new")} />
-                <QuickAction label="Alle Kommunen" onClick={() => navigate("/studio/municipalities")} />
-                <QuickAction label="Alle Regelpakete" onClick={() => navigate("/studio/packs")} />
-                <QuickAction label="Alle Regeln" onClick={() => navigate("/studio/rules")} />
-                <QuickAction label="Audit-Protokoll" onClick={() => navigate("/admin/audit")} />
-              </div>
+          {/* Recent candidates */}
+          <div>
+            <SectionHeader icon={FileSearch} title="Neueste Regelkandidaten" />
+            <div className="border border-border rounded-md bg-card overflow-hidden">
+              {candListLoading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}
+                </div>
+              ) : !recentCandidates?.length ? (
+                <EmptySection text="Keine Regelkandidaten vorhanden." />
+              ) : (
+                <div className="divide-y divide-border">
+                  {recentCandidates.map((c) => (
+                    <div key={c.id} className="px-4 py-2.5 flex items-center justify-between">
+                      <div>
+                        <div className="text-[13px] font-medium">{c.title}</div>
+                        <div className="text-[11px] text-muted-foreground">{format(new Date(c.created_at), "dd.MM.yyyy")}</div>
+                      </div>
+                      <StatusBadge status={c.status} />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
+          </div>
+        </div>
 
-            <div>
-              <SectionHeader icon={Rocket} title="Letzte Releases" />
-              <div className="border border-border rounded-md bg-card overflow-hidden">
-                {!releases?.length ? (
-                  <EmptySection text="Keine Releases." />
-                ) : (
-                  <div className="divide-y divide-border">
-                    {releases.map((r) => {
-                      const jpv = r.jurisdiction_pack_versions as any;
-                      return (
-                        <div key={r.id} className="px-4 py-2.5">
-                          <div className="text-[13px] font-medium">{jpv?.jurisdiction_packs?.name ?? "–"}</div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {jpv?.version_label ?? "–"} · {format(new Date(r.released_at), "dd.MM.yyyy")}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
+        {/* Quick actions */}
+        <div>
+          <SectionHeader icon={Rocket} title="Schnellaktionen" />
+          <div className="flex gap-2 flex-wrap">
+            <QuickAction label="Kommune anlegen" onClick={() => navigate("/studio/municipalities")} />
+            <QuickAction label="Regelpaket anlegen" onClick={() => navigate("/studio/packs")} />
+            <QuickAction label="Audit-Protokoll" onClick={() => navigate("/admin/audit")} />
           </div>
         </div>
       </div>
@@ -246,10 +177,10 @@ export default function StudioDashboard() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({ label, value, loading }: { label: string; value: number; loading: boolean }) {
   return (
     <div className="border border-border rounded-md bg-card px-4 py-3">
-      <div className="text-2xl font-semibold text-foreground">{value}</div>
+      {loading ? <Skeleton className="h-8 w-12" /> : <div className="text-2xl font-semibold text-foreground">{value}</div>}
       <div className="text-[12px] text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
@@ -268,7 +199,7 @@ function QuickAction({ label, onClick }: { label: string; onClick: () => void })
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center gap-2 px-3 py-2 text-[13px] text-left rounded-md border border-border bg-card hover:bg-muted/50 transition-colors"
+      className="flex items-center gap-2 px-3 py-2 text-[13px] rounded-md border border-border bg-card hover:bg-muted/50 transition-colors"
     >
       <Plus className="h-3.5 w-3.5 text-muted-foreground" />
       {label}
