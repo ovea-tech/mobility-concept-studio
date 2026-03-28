@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { PDFDocument } from "pdf-lib";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, Download, X } from "lucide-react";
+import { AlertCircle, Download, X, Info } from "lucide-react";
 import { toast } from "sonner";
 
 interface FormblattViewerProps {
@@ -16,10 +17,17 @@ interface FormblattViewerProps {
 }
 
 export function FormblattViewer({ project, useTypes, sites, measures, onClose }: FormblattViewerProps) {
+  const queryClient = useQueryClient();
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if form template is supported for this jurisdiction
+  const formTemplateId = (project?.jurisdiction_pack_versions as Record<string, unknown>)?.ruleset
+    ? ((project?.jurisdiction_pack_versions as any)?.ruleset?.submission?.form_template_id as string | undefined)
+    : undefined;
+  const isSupported = formTemplateId === "munich_lbk_2023" || !formTemplateId; // default to supported if no explicit ID
 
   // ── Berechnungen aus Ruleset ──
   const ruleset = (project?.jurisdiction_pack_versions as any)?.ruleset as any;
@@ -201,6 +209,7 @@ export function FormblattViewer({ project, useTypes, sites, measures, onClose }:
       });
     } catch {}
 
+    queryClient.invalidateQueries({ queryKey: ["output_packages", project.id] });
     toast.success("PDF heruntergeladen");
   }
 

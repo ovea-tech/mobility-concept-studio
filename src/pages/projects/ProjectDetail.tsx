@@ -518,31 +518,67 @@ function UseTypesTab({ projectId }: { projectId: string }) {
           action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Nutzung anlegen</Button>}
         />
       ) : (
+        <>
         <Table>
           <TableHeader><TableRow>
             <TableHead className={thClass}>Bezeichnung</TableHead>
             <TableHead className={thClass}>Kategorie</TableHead>
+            <TableHead className={thClass}>Wohnmodell</TableHead>
             <TableHead className={thClass}>Einheiten</TableHead>
+            <TableHead className={thClass}>Richtwert</TableHead>
             <TableHead className={thClass}>BGF (m²)</TableHead>
             <TableHead className={thClass} />
           </TableRow></TableHeader>
           <TableBody>
-            {useTypes.map((ut) => (
-              <TableRow key={ut.id}>
-                <TableCell className={`font-medium ${tdClass}`}>{ut.name}</TableCell>
-                <TableCell className={tdMuted}>{ut.category || "–"}</TableCell>
-                <TableCell className={`${tdMuted} tabular-nums`}>{ut.unit_count ?? "–"}</TableCell>
-                <TableCell className={`${tdMuted} tabular-nums`}>{ut.gross_floor_area_sqm != null ? Number(ut.gross_floor_area_sqm).toLocaleString("de-DE") : "–"}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <ActionIcon icon={Pencil} onClick={() => setEditItem(ut)} title="Bearbeiten" />
-                    <ActionIcon icon={Trash2} onClick={() => setDeleteId(ut.id)} title="Löschen" variant="destructive" />
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
+            {useTypes.map((ut) => {
+              const meta = (ut.metadata ?? {}) as Record<string, unknown>;
+              const htCode = meta.housing_type_code as string | undefined;
+              const parkRate = meta.parking_rate as number | undefined;
+              return (
+                <TableRow key={ut.id}>
+                  <TableCell className={`font-medium ${tdClass}`}>{ut.name}</TableCell>
+                  <TableCell className={tdMuted}>{ut.category || "–"}</TableCell>
+                  <TableCell>
+                    {htCode ? (
+                      <Badge variant="secondary" className="text-[10px] font-mono px-1.5 py-0 h-5 rounded">{htCode}</Badge>
+                    ) : (
+                      <span className={tdMuted}>–</span>
+                    )}
+                  </TableCell>
+                  <TableCell className={`${tdMuted} tabular-nums`}>{ut.unit_count ?? "–"}</TableCell>
+                  <TableCell className={`${tdMuted} tabular-nums`}>{parkRate != null ? `${parkRate} StP/WE` : "–"}</TableCell>
+                  <TableCell className={`${tdMuted} tabular-nums`}>{ut.gross_floor_area_sqm != null ? Number(ut.gross_floor_area_sqm).toLocaleString("de-DE") : "–"}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <ActionIcon icon={Pencil} onClick={() => setEditItem(ut)} title="Bearbeiten" />
+                      <ActionIcon icon={Trash2} onClick={() => setDeleteId(ut.id)} title="Löschen" variant="destructive" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
+
+        {/* Stellplatz-Zusammenfassung aus Wohnmodellen */}
+        {(() => {
+          const rowsWithRate = useTypes.filter((ut) => {
+            const meta = (ut.metadata ?? {}) as Record<string, unknown>;
+            return meta.housing_type_code && meta.parking_rate;
+          });
+          if (!rowsWithRate.length) return null;
+          const sumN = rowsWithRate.reduce((s, ut) => {
+            const meta = (ut.metadata ?? {}) as Record<string, unknown>;
+            return s + Math.ceil((ut.unit_count ?? 0) * Number(meta.parking_rate));
+          }, 0);
+          return (
+            <div className="mt-3 px-3 py-2 rounded border border-border bg-muted/20 text-[12px] font-medium text-foreground">
+              Summe N = {sumN} notwendige Stellplätze (berechnet aus Wohnmodellen)
+            </div>
+          );
+        })()}
+        </>
+      
       )}
 
       {/* Stellplatzbilanz Section */}
@@ -1228,6 +1264,9 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
   });
 
   const canGenerateFormblatt = project?.status === "submitted" || project?.status === "approved";
+  const ruleset = (project?.jurisdiction_pack_versions as any)?.ruleset;
+  const formTemplateId = ruleset?.submission?.form_template_id;
+  const isFormSupported = formTemplateId === "munich_lbk_2023" || !formTemplateId;
 
   if (showFormblatt) {
     return (
@@ -1246,18 +1285,32 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
   return (
     <div className="space-y-6">
       <TabToolbar label="Dokumente & Formulare">
-        <Button
-          size="sm"
-          className="h-8 text-[13px]"
-          disabled={!canGenerateFormblatt}
-          onClick={() => setShowFormblatt(true)}
-          title={!canGenerateFormblatt ? "Erst Konzept finalisieren" : undefined}
-        >
-          <FileText className="h-3.5 w-3.5 mr-1.5" /> Formblatt vorbereiten
-        </Button>
+        {isFormSupported ? (
+          <Button
+            size="sm"
+            className="h-8 text-[13px]"
+            disabled={!canGenerateFormblatt}
+            onClick={() => setShowFormblatt(true)}
+            title={!canGenerateFormblatt ? "Erst Konzept finalisieren" : undefined}
+          >
+            <FileText className="h-3.5 w-3.5 mr-1.5" /> Formblatt vorbereiten
+          </Button>
+        ) : null}
       </TabToolbar>
 
-      {!canGenerateFormblatt && (
+      {!isFormSupported && (
+        <div className="rounded-md border border-border bg-accent/30 p-4 flex items-start gap-3">
+          <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div>
+            <p className="text-[13px] font-medium text-foreground">Kein digitales Formblatt verfügbar</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              Für diese Kommune ist noch kein digitales Formblatt hinterlegt. Bitte laden Sie das Formblatt manuell von der zuständigen Behörde herunter.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {isFormSupported && !canGenerateFormblatt && (
         <div className="rounded-md border border-border bg-muted/30 p-3">
           <p className="text-[12px] text-muted-foreground">
             Das LBK-Formblatt kann erst nach Finalisierung des Konzepts erstellt werden.
@@ -1987,27 +2040,45 @@ function SubmitConfirmDialog({ open, onOpenChange, projectId, statusMutation }: 
   const handleSubmit = async () => {
     setIsPending(true);
     try {
-      const { error: statusErr } = await supabase.from("projects").update({ status: "submitted" as any }).eq("id", projectId);
+      const { error: statusErr } = await supabase.from("projects").update({
+        status: "submitted" as any,
+        mf_calculation_locked: true,
+      }).eq("id", projectId);
       if (statusErr) throw statusErr;
 
-      const [sitesRes, conceptsRes, scenariosRes, projectRes] = await Promise.all([
+      const [sitesRes, conceptsRes, scenariosRes, projectRes, useTypesRes, baselineRes, measuresRes, monitoringRes] = await Promise.all([
         supabase.from("project_sites").select("*").eq("project_id", projectId),
         supabase.from("mobility_concepts").select("*").eq("project_id", projectId),
         supabase.from("scenarios").select("*").eq("project_id", projectId),
-        supabase.from("projects").select("*").eq("id", projectId).maybeSingle(),
+        supabase.from("projects").select("*, jurisdiction_pack_versions(version_label)").eq("id", projectId).maybeSingle(),
+        supabase.from("use_types").select("*").eq("project_id", projectId),
+        supabase.from("baseline_requirements").select("*").eq("project_id", projectId),
+        supabase.from("measures").select("*").eq("project_id", projectId),
+        supabase.from("monitoring_items").select("*").eq("project_id", projectId),
       ]);
 
       const { data: session } = await supabase.auth.getSession();
       const userId = session.session?.user?.id ?? null;
+      const proj = projectRes.data;
 
       const { error: snapErr } = await supabase.from("submission_snapshots").insert({
         project_id: projectId,
         version_label: "v" + new Date().toISOString().slice(0, 10),
         snapshot_data: {
-          project: projectRes.data,
+          project: {
+            name: proj?.name,
+            description: proj?.description,
+            status: "submitted",
+            erected_parking_spaces: proj?.erected_parking_spaces,
+            mobility_factor: proj?.mobility_factor,
+            jurisdiction_pack: (proj?.jurisdiction_pack_versions as any)?.version_label,
+          },
           sites: sitesRes.data ?? [],
-          concepts: conceptsRes.data ?? [],
+          use_types: useTypesRes.data ?? [],
+          baseline_requirements: baselineRes.data ?? [],
           scenarios: scenariosRes.data ?? [],
+          measures: measuresRes.data ?? [],
+          monitoring_items: monitoringRes.data ?? [],
         },
         submitted_by: userId,
         submitted_at: new Date().toISOString(),
