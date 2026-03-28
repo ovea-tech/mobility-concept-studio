@@ -231,6 +231,25 @@ export default function ProjectDetail() {
       </Tabs>
 
       <EditProjectDialog open={editProjectOpen} onOpenChange={setEditProjectOpen} project={project} />
+
+      {/* Submission Confirmation */}
+      <AlertDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[15px]">Projekt wirklich einreichen?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[13px]">
+              Nach der Einreichung kann das Konzept nicht mehr bearbeitet werden. Bitte bestätigen Sie die Vollständigkeit aller Unterlagen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { statusMutation.mutate("submitted"); setSubmitConfirmOpen(false); }}
+              disabled={statusMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[13px]">
+              {statusMutation.isPending ? "Wird eingereicht…" : "Jetzt einreichen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
