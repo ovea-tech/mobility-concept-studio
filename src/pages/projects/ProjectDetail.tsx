@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { CalculatorTab } from "@/components/project/CalculatorTab";
 import { ComplianceTab } from "@/components/project/ComplianceTab";
+import { FormblattViewer } from "@/components/project/FormblattViewer";
 
 /* ── shared styles ── */
 const tabClass =
