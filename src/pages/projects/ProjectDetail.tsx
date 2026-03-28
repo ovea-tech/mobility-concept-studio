@@ -48,6 +48,15 @@ const thClass = "text-[11px] uppercase tracking-wider text-muted-foreground/70 f
 const tdClass = "text-[13px]";
 const tdMuted = "text-[12px] text-muted-foreground";
 
+function TabErrorFallback({ label }: { label: string }) {
+  return (
+    <div className="border border-destructive rounded-md px-4 py-3">
+      <p className="text-[13px] font-medium text-destructive">{label} konnte nicht geladen werden.</p>
+      <p className="text-[12px] text-muted-foreground mt-1">Bitte Seite neu laden.</p>
+    </div>
+  );
+}
+
 function TabToolbar({ label, count, children }: { label: string; count?: number; children?: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
