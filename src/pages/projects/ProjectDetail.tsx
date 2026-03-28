@@ -245,7 +245,7 @@ export default function ProjectDetail() {
           <TabsContent value="concepts" className="p-6 mt-0"><ConceptsTab projectId={project.id} /></TabsContent>
           <TabsContent value="scenarios" className="p-6 mt-0"><ScenariosTab projectId={project.id} /></TabsContent>
           <TabsContent value="monitoring" className="p-6 mt-0"><MonitoringTab projectId={project.id} /></TabsContent>
-          <TabsContent value="documents" className="p-6 mt-0"><DocumentsTab /></TabsContent>
+          <TabsContent value="documents" className="p-6 mt-0"><DocumentsTab projectId={project.id} project={project} /></TabsContent>
         </div>
       </Tabs>
 
