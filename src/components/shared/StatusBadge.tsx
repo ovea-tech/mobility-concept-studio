@@ -1,24 +1,32 @@
 import { cn } from "@/lib/utils";
 
 const statusConfig: Record<string, { label: string; variant: string }> = {
+  // project_status
   draft: { label: "Entwurf", variant: "bg-muted text-muted-foreground" },
   active: { label: "Aktiv", variant: "bg-primary/10 text-primary" },
-  in_review: { label: "In Prüfung", variant: "bg-amber-500/10 text-amber-700" },
+  submitted: { label: "Eingereicht", variant: "bg-amber-500/10 text-amber-700" },
   approved: { label: "Freigegeben", variant: "bg-emerald-500/10 text-emerald-700" },
-  released: { label: "Veröffentlicht", variant: "bg-emerald-500/10 text-emerald-700" },
-  submitted: { label: "Eingereicht", variant: "bg-teal-500/10 text-teal-700" },
-  pending: { label: "Ausstehend", variant: "bg-amber-500/10 text-amber-700" },
-  completed: { label: "Abgeschlossen", variant: "bg-emerald-500/10 text-emerald-700" },
-  overdue: { label: "Überfällig", variant: "bg-destructive/10 text-destructive" },
-  rejected: { label: "Abgelehnt", variant: "bg-destructive/10 text-destructive" },
-  candidate: { label: "Kandidat", variant: "bg-muted text-muted-foreground" },
-  proposed: { label: "Vorgeschlagen", variant: "bg-muted text-muted-foreground" },
-  retired: { label: "Archiviert", variant: "bg-muted text-muted-foreground" },
   archived: { label: "Archiviert", variant: "bg-muted text-muted-foreground" },
+  // monitoring_status
+  pending: { label: "Ausstehend", variant: "bg-muted text-muted-foreground" },
   in_progress: { label: "In Bearbeitung", variant: "bg-primary/10 text-primary" },
-  on_track: { label: "Im Plan", variant: "bg-emerald-500/10 text-emerald-700" },
-  at_risk: { label: "Gefährdet", variant: "bg-amber-500/10 text-amber-700" },
-  accepted: { label: "Akzeptiert", variant: "bg-emerald-500/10 text-emerald-700" },
+  compliant: { label: "Konform", variant: "bg-emerald-500/10 text-emerald-700" },
+  non_compliant: { label: "Nicht konform", variant: "bg-destructive/10 text-destructive" },
+  waived: { label: "Ausgenommen", variant: "bg-violet-500/10 text-violet-700" },
+  // concept_version_status
+  final: { label: "Final", variant: "bg-primary/10 text-primary" },
+  superseded: { label: "Abgelöst", variant: "bg-muted text-muted-foreground" },
+  // approval_status
+  in_review: { label: "In Prüfung", variant: "bg-amber-500/10 text-amber-700" },
+  rejected: { label: "Abgelehnt", variant: "bg-destructive/10 text-destructive" },
+  withdrawn: { label: "Zurückgezogen", variant: "bg-muted text-muted-foreground" },
+  // pack_status
+  released: { label: "Veröffentlicht", variant: "bg-emerald-500/10 text-emerald-700" },
+  deprecated: { label: "Veraltet", variant: "bg-muted text-muted-foreground" },
+  // rule_status
+  candidate: { label: "Kandidat", variant: "bg-muted text-muted-foreground" },
+  // measure status
+  proposed: { label: "Vorgeschlagen", variant: "bg-muted text-muted-foreground" },
 };
 
 interface StatusBadgeProps {

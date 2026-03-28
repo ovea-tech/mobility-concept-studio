@@ -29,7 +29,7 @@ export default function CustomerDashboard() {
       const { data, error } = await supabase
         .from("monitoring_items")
         .select("id, title, due_date, status, project_id, projects(name)")
-        .in("status", ["pending", "in_progress"])
+        .in("status", ["pending", "in_progress", "non_compliant"])
         .order("due_date", { ascending: true })
         .limit(5);
       if (error) throw error;
@@ -41,7 +41,7 @@ export default function CustomerDashboard() {
   const counts = {
     draft: allProjects.filter((p) => p.status === "draft").length,
     active: allProjects.filter((p) => p.status === "active").length,
-    in_review: allProjects.filter((p) => p.status === "submitted").length,
+    submitted: allProjects.filter((p) => p.status === "submitted").length,
     approved: allProjects.filter((p) => p.status === "approved").length,
   };
 
@@ -69,7 +69,7 @@ export default function CustomerDashboard() {
           {[
             { label: "Entwurf", count: counts.draft },
             { label: "Aktiv", count: counts.active },
-            { label: "In Prüfung", count: counts.in_review },
+            { label: "Eingereicht", count: counts.submitted },
             { label: "Freigegeben", count: counts.approved },
           ].map((s) => (
             <div key={s.label} className="border border-border rounded-md bg-card px-4 py-3">

@@ -403,7 +403,7 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] font-medium text-foreground">{scenario.name}</span>
-                  {scenario.is_baseline && <Badge variant="secondary" className="text-[10px] h-4 px-1">Basis</Badge>}
+                  {scenario.is_baseline && <Badge variant="secondary" className="text-[10px] h-4 px-1 bg-primary/10 text-primary border-0">Baseline</Badge>}
                 </div>
                 {scenario.description && (
                   <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg truncate">{scenario.description}</p>
@@ -413,7 +413,7 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
             <div className="flex items-center gap-3">
               {scenario.total_reduction_pct != null && (
                 <span className="text-[12px] text-muted-foreground tabular-nums">
-                  Reduktion: {scenario.total_reduction_pct}%
+                  Zielreduktion: {scenario.total_reduction_pct}%
                 </span>
               )}
             </div>
@@ -507,11 +507,10 @@ function MonitoringTab({ projectId }: { projectId: string }) {
           </TableRow></TableHeader>
           <TableBody>
             {items.map((m) => {
-              const isOverdue = m.due_date && new Date(m.due_date) < new Date() && m.status === "pending";
               return (
                 <TableRow key={m.id}>
                   <TableCell className={`font-medium ${tdClass}`}>{m.title}</TableCell>
-                  <TableCell><StatusBadge status={isOverdue ? "overdue" : m.status} /></TableCell>
+                  <TableCell><StatusBadge status={m.status} /></TableCell>
                   <TableCell className={`${tdMuted} tabular-nums`}>{m.due_date ? format(new Date(m.due_date), "dd.MM.yyyy") : "–"}</TableCell>
                   <TableCell className={tdMuted}>{m.completed_at ? format(new Date(m.completed_at), "dd.MM.yyyy") : "–"}</TableCell>
                 </TableRow>
