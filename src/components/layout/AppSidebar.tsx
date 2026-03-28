@@ -50,7 +50,7 @@ export function AppSidebar() {
     });
   }, []);
 
-  const { data: profile } = useQuery({
+  const { data: profile, isLoading: profileLoading } = useQuery({
     queryKey: ["profile", userId],
     queryFn: async () => {
       const { data, error } = await supabase.from("profiles").select("*").eq("id", userId!).maybeSingle();
@@ -61,7 +61,7 @@ export function AppSidebar() {
   });
 
   const displayName = profile?.full_name || profile?.email || "User";
-  const initials = displayName.slice(0, 2).toUpperCase();
+  const initials = (profile?.full_name ?? profile?.email ?? "US").slice(0, 2).toUpperCase();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
