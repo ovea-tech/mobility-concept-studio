@@ -24,15 +24,30 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [workspaceId, setWorkspaceId] = useState("");
   const [packVersionId, setPackVersionId] = useState("");
 
-  const { data: workspaces } = useQuery({
-    queryKey: ["workspaces-select"],
+  // Auto-resolve workspace from user's membership
+  const { data: userWorkspace } = useQuery({
+    queryKey: ["user-workspace"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("workspaces").select("id, name").order("name");
-      if (error) throw error;
-      return data;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return null;
+      const { data, error } = await supabase
+        .from("memberships")
+        .select("organization_id, organizations(id, name)")
+        .eq("user_id", session.user.id)
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) return null;
+      const orgId = data.organization_id;
+      const { data: ws, error: wsErr } = await supabase
+        .from("workspaces")
+        .select("id, name")
+        .eq("organization_id", orgId)
+        .limit(1)
+        .maybeSingle();
+      if (wsErr) return null;
+      return ws;
     },
     enabled: open,
   });
@@ -53,11 +68,12 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
 
   const mutation = useMutation({
     mutationFn: async () => {
+      if (!userWorkspace?.id) throw new Error("Kein Arbeitsbereich gefunden.");
       const { data: session } = await supabase.auth.getSession();
       const { data, error } = await supabase.from("projects").insert({
         name: name.trim(),
         description: description.trim() || null,
-        workspace_id: workspaceId,
+        workspace_id: userWorkspace.id,
         jurisdiction_pack_version_id: packVersionId,
         created_by: session.session?.user?.id ?? null,
       }).select().single();
@@ -66,7 +82,7 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("Projekt erstellt");
+      toast.success("Projekt wurde angelegt");
       onOpenChange(false);
       resetForm();
       navigate(`/projects/${data.id}`);
@@ -79,14 +95,13 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
   const resetForm = () => {
     setName("");
     setDescription("");
-    setWorkspaceId("");
     setPackVersionId("");
   };
 
-  const canSubmit = name.trim().length > 0 && workspaceId && packVersionId;
+  const canSubmit = name.trim().length > 0 && packVersionId && !!userWorkspace?.id;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-[15px]">Neues Projekt anlegen</DialogTitle>
@@ -111,19 +126,12 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
               rows={2}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-[13px]">Arbeitsbereich *</Label>
-            <Select value={workspaceId} onValueChange={setWorkspaceId}>
-              <SelectTrigger className="h-9 text-[13px]">
-                <SelectValue placeholder="Arbeitsbereich wählen…" />
-              </SelectTrigger>
-              <SelectContent>
-                {workspaces?.map((w) => (
-                  <SelectItem key={w.id} value={w.id} className="text-[13px]">{w.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {userWorkspace && (
+            <div className="space-y-1.5">
+              <Label className="text-[13px] text-muted-foreground">Arbeitsbereich</Label>
+              <p className="text-[13px] text-foreground">{userWorkspace.name}</p>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-[13px]">Regelpaket-Version *</Label>
             <Select value={packVersionId} onValueChange={setPackVersionId}>
@@ -144,7 +152,7 @@ export function CreateProjectDialog({ open, onOpenChange }: Props) {
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">
+          <Button variant="outline" size="sm" onClick={() => { resetForm(); onOpenChange(false); }} className="text-[13px]">
             Abbrechen
           </Button>
           <Button size="sm" onClick={() => mutation.mutate()} disabled={!canSubmit || mutation.isPending} className="text-[13px]">
