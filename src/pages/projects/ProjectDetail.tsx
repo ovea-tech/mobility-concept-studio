@@ -105,6 +105,7 @@ export default function ProjectDetail() {
   const queryClient = useQueryClient();
   const [editProjectOpen, setEditProjectOpen] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [approveConfirmOpen, setApproveConfirmOpen] = useState(false);
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
@@ -131,10 +132,15 @@ export default function ProjectDetail() {
       const { error } = await supabase.from("projects").update({ status: newStatus as any }).eq("id", id!);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: (_, newStatus) => {
       queryClient.invalidateQueries({ queryKey: ["project", id] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
-      toast.success("Projektstatus aktualisiert");
+      const msgs: Record<string, string> = {
+        active: "Planung gestartet",
+        submitted: "Konzept wurde finalisiert",
+        approved: "Behördliche Genehmigung bestätigt",
+      };
+      toast.success(msgs[newStatus] ?? "Projektstatus aktualisiert");
     },
     onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
   });
