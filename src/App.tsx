@@ -4,7 +4,9 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/auth/Login";
 
 import CustomerDashboard from "./pages/CustomerDashboard";
 import StudioDashboard from "./pages/StudioDashboard";
@@ -27,7 +29,17 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route element={<AppLayout />}>
+          {/* Public */}
+          <Route path="/auth/login" element={<Login />} />
+
+          {/* Protected */}
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<CustomerDashboard />} />
 
@@ -48,6 +60,7 @@ const App = () => (
             <Route path="/admin/roles" element={<PlaceholderPage title="Rollen" description="Plattform-Rollenverwaltung" />} />
             <Route path="/admin/audit" element={<AuditLog />} />
           </Route>
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
@@ -56,4 +69,3 @@ const App = () => (
 );
 
 export default App;
-
