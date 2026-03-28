@@ -722,7 +722,7 @@ function SnapshotsTab({ projectId }: { projectId: string }) {
                 <TableCell className={`font-medium ${tdClass}`}>{s.version_label}</TableCell>
                 <TableCell className={tdMuted}>{conceptLabel}</TableCell>
                 <TableCell className={tdMuted}>
-                  {s.submitted_at ? format(new Date(s.submitted_at), "dd.MM.yyyy HH:mm") : <span className="text-amber-600 text-[11px]">Ausstehend</span>}
+                  {s.submitted_at ? format(new Date(s.submitted_at), "dd.MM.yyyy HH:mm") : <StatusBadge status="pending" />}
                 </TableCell>
                 <TableCell className={tdMuted}>{format(new Date(s.created_at), "dd.MM.yyyy")}</TableCell>
               </TableRow>
