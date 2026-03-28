@@ -24,9 +24,10 @@ const tdClass = "text-[13px]";
 interface CalculatorTabProps {
   projectId: string;
   project: any;
+  onNavigate?: (tab: string) => void;
 }
 
-export function CalculatorTab({ projectId, project }: CalculatorTabProps) {
+export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabProps) {
   const queryClient = useQueryClient();
   const isLocked = project?.mf_calculation_locked === true;
 
@@ -482,6 +483,37 @@ export function CalculatorTab({ projectId, project }: CalculatorTabProps) {
               </>
             )}
           </section>
+        )}
+
+        {/* FIX 5: Smart Guidance after MF calculation */}
+        {calculation?.mf != null && calculation.stufe && onNavigate && (
+          calculation.stufe === "standard" ? (
+            <div className="border border-green-300 bg-green-50 dark:bg-green-950/20 dark:border-green-800 rounded-md px-4 py-3 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="h-4 w-4 text-green-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[13px] font-medium text-green-800 dark:text-green-300">Standardkonzept – Mindestanforderungen ausreichend</p>
+                  <p className="text-[12px] text-green-700 dark:text-green-400 mt-0.5">Nächster Schritt: Checkliste unter Nachweis ausfüllen</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" className="h-7 text-[12px] shrink-0" onClick={() => onNavigate("compliance")}>
+                → Zur Nachweisführung
+              </Button>
+            </div>
+          ) : (
+            <div className="border border-amber-300 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 rounded-md px-4 py-3 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-[13px] font-medium text-amber-800 dark:text-amber-300">Erweitertes Konzept erforderlich</p>
+                  <p className="text-[12px] text-amber-700 dark:text-amber-400 mt-0.5">Vorabstimmung mit LBK München nötig. Nächster Schritt: Pflicht-Maßnahmen definieren</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" className="h-7 text-[12px] shrink-0" onClick={() => onNavigate("scenarios")}>
+                → Zu Szenarien & Maßnahmen
+              </Button>
+            </div>
+          )
         )}
 
         {/* ABSCHNITT 4: Save Bar */}
