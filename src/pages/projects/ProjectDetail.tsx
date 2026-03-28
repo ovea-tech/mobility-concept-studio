@@ -12,14 +12,22 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  Collapsible, CollapsibleContent, CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {
-  MapPin, Lightbulb, ChevronLeft, Plus, ClipboardList, FileText,
-  Calendar, Building2, Package, AlertCircle,
+  MapPin, Lightbulb, ChevronLeft, ChevronDown, ChevronRight,
+  Plus, ClipboardList, FileText, Calendar, Building2, Package,
+  AlertCircle, Beaker, Target,
 } from "lucide-react";
 
 /* ── shared styles ── */
@@ -50,7 +58,6 @@ function LoadingSkeleton({ rows = 4 }: { rows?: number }) {
         <div key={i} className="flex gap-4">
           <Skeleton className="h-4 w-1/4" />
           <Skeleton className="h-4 w-1/3" />
-          <Skeleton className="h-4 w-1/6" />
           <Skeleton className="h-4 w-1/6" />
         </div>
       ))}
@@ -83,9 +90,7 @@ export default function ProjectDetail() {
           *,
           workspaces(name, organizations(name)),
           jurisdiction_pack_versions(
-            version_number,
-            version_label,
-            status,
+            version_number, version_label, status,
             jurisdiction_packs(name, municipalities(name, state))
           )
         `)
@@ -103,7 +108,7 @@ export default function ProjectDetail() {
         <Skeleton className="h-6 w-64" />
         <Skeleton className="h-4 w-96" />
         <div className="flex gap-4 mt-6">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-8 w-20" />)}
+          {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-8 w-20" />)}
         </div>
         <LoadingSkeleton rows={6} />
       </div>
@@ -133,7 +138,7 @@ export default function ProjectDetail() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* ── Project Header ── */}
+      {/* Header */}
       <div className="border-b border-border bg-card px-6 py-4">
         <div className="flex items-start justify-between">
           <div className="flex-1">
@@ -157,30 +162,24 @@ export default function ProjectDetail() {
         </div>
       </div>
 
-      {/* ── Workspace Tabs ── */}
+      {/* Tabs */}
       <Tabs defaultValue="overview" className="flex-1 flex flex-col">
         <div className="border-b border-border bg-card px-6 overflow-x-auto">
           <TabsList className="bg-transparent h-auto p-0 gap-0 flex-nowrap">
             <TabsTrigger value="overview" className={tabClass}>Übersicht</TabsTrigger>
             <TabsTrigger value="concepts" className={tabClass}>Konzepte</TabsTrigger>
+            <TabsTrigger value="scenarios" className={tabClass}>Szenarien & Maßnahmen</TabsTrigger>
             <TabsTrigger value="monitoring" className={tabClass}>Monitoring</TabsTrigger>
             <TabsTrigger value="documents" className={tabClass}>Dokumente</TabsTrigger>
           </TabsList>
         </div>
 
         <div className="flex-1 overflow-auto">
-          <TabsContent value="overview" className="p-6 mt-0">
-            <OverviewTab projectId={project.id} />
-          </TabsContent>
-          <TabsContent value="concepts" className="p-6 mt-0">
-            <ConceptsTab projectId={project.id} />
-          </TabsContent>
-          <TabsContent value="monitoring" className="p-6 mt-0">
-            <MonitoringTab projectId={project.id} />
-          </TabsContent>
-          <TabsContent value="documents" className="p-6 mt-0">
-            <DocumentsTab />
-          </TabsContent>
+          <TabsContent value="overview" className="p-6 mt-0"><OverviewTab projectId={project.id} /></TabsContent>
+          <TabsContent value="concepts" className="p-6 mt-0"><ConceptsTab projectId={project.id} /></TabsContent>
+          <TabsContent value="scenarios" className="p-6 mt-0"><ScenariosTab projectId={project.id} /></TabsContent>
+          <TabsContent value="monitoring" className="p-6 mt-0"><MonitoringTab projectId={project.id} /></TabsContent>
+          <TabsContent value="documents" className="p-6 mt-0"><DocumentsTab /></TabsContent>
         </div>
       </Tabs>
     </div>
@@ -188,7 +187,7 @@ export default function ProjectDetail() {
 }
 
 /* ══════════════════════════════════════════════
-   OVERVIEW TAB – Metadaten + Standorte + Konzepte
+   OVERVIEW TAB
    ══════════════════════════════════════════════ */
 function OverviewTab({ projectId }: { projectId: string }) {
   const [createSiteOpen, setCreateSiteOpen] = useState(false);
@@ -196,11 +195,7 @@ function OverviewTab({ projectId }: { projectId: string }) {
   const { data: sites, isLoading: sitesLoading } = useQuery({
     queryKey: ["project-sites", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("project_sites")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at");
+      const { data, error } = await supabase.from("project_sites").select("*").eq("project_id", projectId).order("created_at");
       if (error) throw error;
       return data;
     },
@@ -209,11 +204,7 @@ function OverviewTab({ projectId }: { projectId: string }) {
   const { data: concepts, isLoading: conceptsLoading } = useQuery({
     queryKey: ["project-concepts", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("mobility_concepts")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at");
+      const { data, error } = await supabase.from("mobility_concepts").select("*").eq("project_id", projectId).order("created_at");
       if (error) throw error;
       return data;
     },
@@ -221,7 +212,6 @@ function OverviewTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6 max-w-4xl">
-      {/* Standorte */}
       <div>
         <TabToolbar label="Standorte" count={sites?.length}>
           <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateSiteOpen(true)}>
@@ -230,36 +220,23 @@ function OverviewTab({ projectId }: { projectId: string }) {
         </TabToolbar>
         {sitesLoading ? <LoadingSkeleton rows={2} /> :
          !sites?.length ? (
-          <EmptyState
-            icon={MapPin}
-            title="Keine Standorte vorhanden"
-            description="Definieren Sie den ersten Projektstandort."
-            action={
-              <Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateSiteOpen(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> Standort anlegen
-              </Button>
-            }
+          <EmptyState icon={MapPin} title="Keine Standorte vorhanden" description="Definieren Sie den ersten Projektstandort."
+            action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateSiteOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Standort anlegen</Button>}
           />
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className={thClass}>Name</TableHead>
-                <TableHead className={thClass}>Adresse</TableHead>
-                <TableHead className={thClass}>Fläche (m²)</TableHead>
-                <TableHead className={thClass}>Flurstück</TableHead>
-                <TableHead className={thClass}>Erstellt</TableHead>
-              </TableRow>
-            </TableHeader>
+            <TableHeader><TableRow>
+              <TableHead className={thClass}>Name</TableHead>
+              <TableHead className={thClass}>Adresse</TableHead>
+              <TableHead className={thClass}>Fläche (m²)</TableHead>
+              <TableHead className={thClass}>Erstellt</TableHead>
+            </TableRow></TableHeader>
             <TableBody>
               {sites.map((s) => (
                 <TableRow key={s.id}>
                   <TableCell className={`font-medium ${tdClass}`}>{s.name}</TableCell>
                   <TableCell className={tdMuted}>{s.address || "–"}</TableCell>
-                  <TableCell className={`${tdMuted} tabular-nums`}>
-                    {s.area_sqm != null ? Number(s.area_sqm).toLocaleString("de-DE") : "–"}
-                  </TableCell>
-                  <TableCell className={`${tdMuted} font-mono text-[11px]`}>{s.cadastral_ref || "–"}</TableCell>
+                  <TableCell className={`${tdMuted} tabular-nums`}>{s.area_sqm != null ? Number(s.area_sqm).toLocaleString("de-DE") : "–"}</TableCell>
                   <TableCell className={tdMuted}>{format(new Date(s.created_at), "dd.MM.yyyy")}</TableCell>
                 </TableRow>
               ))}
@@ -268,7 +245,6 @@ function OverviewTab({ projectId }: { projectId: string }) {
         )}
       </div>
 
-      {/* Konzepte */}
       <div>
         <TabToolbar label="Konzepte" count={concepts?.length} />
         {conceptsLoading ? <LoadingSkeleton rows={2} /> :
@@ -276,13 +252,11 @@ function OverviewTab({ projectId }: { projectId: string }) {
           <p className="text-[13px] text-muted-foreground">Noch keine Konzepte angelegt. Wechseln Sie zum Tab „Konzepte".</p>
         ) : (
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className={thClass}>Name</TableHead>
-                <TableHead className={thClass}>Beschreibung</TableHead>
-                <TableHead className={thClass}>Erstellt</TableHead>
-              </TableRow>
-            </TableHeader>
+            <TableHeader><TableRow>
+              <TableHead className={thClass}>Name</TableHead>
+              <TableHead className={thClass}>Beschreibung</TableHead>
+              <TableHead className={thClass}>Erstellt</TableHead>
+            </TableRow></TableHeader>
             <TableBody>
               {concepts.map((c) => (
                 <TableRow key={c.id}>
@@ -310,11 +284,7 @@ function ConceptsTab({ projectId }: { projectId: string }) {
   const { data: concepts, isLoading } = useQuery({
     queryKey: ["project-concepts", projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("mobility_concepts")
-        .select("*")
-        .eq("project_id", projectId)
-        .order("created_at");
+      const { data, error } = await supabase.from("mobility_concepts").select("*").eq("project_id", projectId).order("created_at");
       if (error) throw error;
       return data;
     },
@@ -329,25 +299,16 @@ function ConceptsTab({ projectId }: { projectId: string }) {
       </TabToolbar>
       {isLoading ? <LoadingSkeleton /> :
        !concepts?.length ? (
-        <EmptyState
-          icon={Lightbulb}
-          title="Kein Mobilitätskonzept vorhanden"
-          description="Erstellen Sie Ihr erstes Konzept, um Szenarien und Maßnahmen zu definieren."
-          action={
-            <Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Konzept erstellen
-            </Button>
-          }
+        <EmptyState icon={Lightbulb} title="Kein Mobilitätskonzept vorhanden" description="Erstellen Sie Ihr erstes Konzept, um Szenarien und Maßnahmen zu definieren."
+          action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Konzept erstellen</Button>}
         />
       ) : (
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className={thClass}>Name</TableHead>
-              <TableHead className={thClass}>Beschreibung</TableHead>
-              <TableHead className={thClass}>Erstellt</TableHead>
-            </TableRow>
-          </TableHeader>
+          <TableHeader><TableRow>
+            <TableHead className={thClass}>Name</TableHead>
+            <TableHead className={thClass}>Beschreibung</TableHead>
+            <TableHead className={thClass}>Erstellt</TableHead>
+          </TableRow></TableHeader>
           <TableBody>
             {concepts.map((c) => (
               <TableRow key={c.id}>
@@ -365,9 +326,189 @@ function ConceptsTab({ projectId }: { projectId: string }) {
 }
 
 /* ══════════════════════════════════════════════
+   SCENARIOS & MEASURES TAB
+   ══════════════════════════════════════════════ */
+function ScenariosTab({ projectId }: { projectId: string }) {
+  const [createScenarioOpen, setCreateScenarioOpen] = useState(false);
+
+  // Load concepts for the create dialog
+  const { data: concepts } = useQuery({
+    queryKey: ["project-concepts", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("mobility_concepts").select("id, name").eq("project_id", projectId).order("created_at");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Load concept_versions for this project's concepts
+  const { data: conceptVersions } = useQuery({
+    queryKey: ["project-concept-versions", projectId],
+    queryFn: async () => {
+      if (!concepts?.length) return [];
+      const conceptIds = concepts.map((c) => c.id);
+      const { data, error } = await supabase
+        .from("concept_versions")
+        .select("id, concept_id, version_number, status")
+        .in("concept_id", conceptIds)
+        .order("version_number", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!concepts?.length,
+  });
+
+  // Load scenarios via concept_versions
+  const { data: scenarios, isLoading } = useQuery({
+    queryKey: ["project-scenarios", projectId],
+    queryFn: async () => {
+      if (!conceptVersions?.length) return [];
+      const cvIds = conceptVersions.map((cv) => cv.id);
+      const { data, error } = await supabase
+        .from("scenarios")
+        .select("*")
+        .eq("project_id", projectId)
+        .in("concept_version_id", cvIds)
+        .order("created_at");
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!conceptVersions?.length,
+  });
+
+  return (
+    <>
+      <TabToolbar label="Szenarien" count={scenarios?.length}>
+        <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateScenarioOpen(true)}
+          disabled={!conceptVersions?.length}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Szenario anlegen
+        </Button>
+      </TabToolbar>
+
+      {!concepts?.length ? (
+        <EmptyState icon={Beaker} title="Zuerst ein Konzept anlegen"
+          description="Szenarien werden innerhalb von Konzepten erstellt. Legen Sie zuerst ein Mobilitätskonzept an." />
+      ) : isLoading ? <LoadingSkeleton /> :
+       !scenarios?.length ? (
+        <EmptyState icon={Beaker} title="Keine Szenarien vorhanden"
+          description="Erstellen Sie ein Szenario, um Maßnahmen zu definieren."
+          action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateScenarioOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Szenario erstellen</Button>}
+        />
+      ) : (
+        <div className="space-y-3">
+          {scenarios.map((scenario) => (
+            <ScenarioCard key={scenario.id} scenario={scenario} projectId={projectId} />
+          ))}
+        </div>
+      )}
+
+      <CreateScenarioDialog
+        open={createScenarioOpen}
+        onOpenChange={setCreateScenarioOpen}
+        projectId={projectId}
+        conceptVersions={conceptVersions ?? []}
+        concepts={concepts ?? []}
+      />
+    </>
+  );
+}
+
+function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: string }) {
+  const [open, setOpen] = useState(false);
+  const [createMeasureOpen, setCreateMeasureOpen] = useState(false);
+
+  const { data: measures, isLoading } = useQuery({
+    queryKey: ["scenario-measures", scenario.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("measures")
+        .select("*")
+        .eq("scenario_id", scenario.id)
+        .order("created_at");
+      if (error) throw error;
+      return data;
+    },
+    enabled: open,
+  });
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <div className="border border-border rounded-md bg-card">
+        <CollapsibleTrigger asChild>
+          <button className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors">
+            <div className="flex items-center gap-3">
+              {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-foreground">{scenario.name}</span>
+                  {scenario.is_baseline && <Badge variant="secondary" className="text-[10px] h-4 px-1">Basis</Badge>}
+                </div>
+                {scenario.description && (
+                  <p className="text-[11px] text-muted-foreground mt-0.5 max-w-lg truncate">{scenario.description}</p>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              {scenario.total_reduction_pct != null && (
+                <span className="text-[12px] text-muted-foreground tabular-nums">
+                  Reduktion: {scenario.total_reduction_pct}%
+                </span>
+              )}
+            </div>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="border-t border-border px-4 py-3">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[12px] font-medium text-muted-foreground uppercase tracking-wider">Maßnahmen</span>
+              <Button size="sm" variant="outline" className="h-7 text-[12px]" onClick={() => setCreateMeasureOpen(true)}>
+                <Plus className="h-3 w-3 mr-1" /> Maßnahme
+              </Button>
+            </div>
+            {isLoading ? <LoadingSkeleton rows={2} /> :
+             !measures?.length ? (
+              <p className="text-[12px] text-muted-foreground py-2">Keine Maßnahmen definiert.</p>
+            ) : (
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead className={thClass}>Name</TableHead>
+                  <TableHead className={thClass}>Kategorie</TableHead>
+                  <TableHead className={thClass}>Reduktion</TableHead>
+                  <TableHead className={thClass}>Status</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {measures.map((m) => (
+                    <TableRow key={m.id}>
+                      <TableCell className={`font-medium ${tdClass}`}>{m.name}</TableCell>
+                      <TableCell className={tdMuted}>{m.category || "–"}</TableCell>
+                      <TableCell className={`${tdMuted} tabular-nums`}>
+                        {m.reduction_value != null ? `${m.reduction_value} ${m.reduction_unit || ""}`.trim() : "–"}
+                      </TableCell>
+                      <TableCell><StatusBadge status={m.status} /></TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </div>
+          <CreateMeasureDialog
+            open={createMeasureOpen}
+            onOpenChange={setCreateMeasureOpen}
+            scenarioId={scenario.id}
+            projectId={projectId}
+          />
+        </CollapsibleContent>
+      </div>
+    </Collapsible>
+  );
+}
+
+/* ══════════════════════════════════════════════
    MONITORING TAB
    ══════════════════════════════════════════════ */
 function MonitoringTab({ projectId }: { projectId: string }) {
+  const [createOpen, setCreateOpen] = useState(false);
+
   const { data: items, isLoading } = useQuery({
     queryKey: ["project-monitoring", projectId],
     queryFn: async () => {
@@ -383,59 +524,52 @@ function MonitoringTab({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <TabToolbar label="Monitoring" count={items?.length} />
+      <TabToolbar label="Monitoring" count={items?.length}>
+        <Button size="sm" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Eintrag anlegen
+        </Button>
+      </TabToolbar>
       {isLoading ? <LoadingSkeleton /> :
        !items?.length ? (
-        <EmptyState
-          icon={ClipboardList}
-          title="Keine Monitoring-Einträge"
-          description="Monitoring-Einträge werden automatisch erstellt, wenn Maßnahmen definiert werden."
+        <EmptyState icon={ClipboardList} title="Keine Monitoring-Einträge"
+          description="Legen Sie Monitoring-Einträge an, um Fristen und Nachweise zu verfolgen."
+          action={<Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateOpen(true)}><Plus className="h-3.5 w-3.5 mr-1" /> Eintrag anlegen</Button>}
         />
       ) : (
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className={thClass}>Titel</TableHead>
-              <TableHead className={thClass}>Status</TableHead>
-              <TableHead className={thClass}>Fällig am</TableHead>
-              <TableHead className={thClass}>Abgeschlossen</TableHead>
-            </TableRow>
-          </TableHeader>
+          <TableHeader><TableRow>
+            <TableHead className={thClass}>Titel</TableHead>
+            <TableHead className={thClass}>Status</TableHead>
+            <TableHead className={thClass}>Fällig am</TableHead>
+            <TableHead className={thClass}>Abgeschlossen</TableHead>
+          </TableRow></TableHeader>
           <TableBody>
             {items.map((m) => {
-              const isOverdue = m.due_date && new Date(m.due_date) < new Date() && (m.status === "pending" || m.status === "in_progress");
+              const isOverdue = m.due_date && new Date(m.due_date) < new Date() && m.status === "pending";
               return (
                 <TableRow key={m.id}>
                   <TableCell className={`font-medium ${tdClass}`}>{m.title}</TableCell>
-                  <TableCell>
-                    <StatusBadge status={isOverdue ? "overdue" : m.status} />
-                  </TableCell>
-                  <TableCell className={`${tdMuted} tabular-nums`}>
-                    {m.due_date ? format(new Date(m.due_date), "dd.MM.yyyy") : "–"}
-                  </TableCell>
-                  <TableCell className={tdMuted}>
-                    {m.completed_at ? format(new Date(m.completed_at), "dd.MM.yyyy") : "–"}
-                  </TableCell>
+                  <TableCell><StatusBadge status={isOverdue ? "overdue" : m.status} /></TableCell>
+                  <TableCell className={`${tdMuted} tabular-nums`}>{m.due_date ? format(new Date(m.due_date), "dd.MM.yyyy") : "–"}</TableCell>
+                  <TableCell className={tdMuted}>{m.completed_at ? format(new Date(m.completed_at), "dd.MM.yyyy") : "–"}</TableCell>
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       )}
+      <CreateMonitoringDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
     </>
   );
 }
 
 /* ══════════════════════════════════════════════
-   DOCUMENTS TAB (Platzhalter)
+   DOCUMENTS TAB
    ══════════════════════════════════════════════ */
 function DocumentsTab() {
   return (
-    <EmptyState
-      icon={FileText}
-      title="Dokumente"
-      description="Dokumenten-Upload und -Verwaltung folgt in einem späteren Sprint."
-    />
+    <EmptyState icon={FileText} title="Dokumente"
+      description="Dokumenten-Upload und -Verwaltung folgt in einem späteren Sprint." />
   );
 }
 
@@ -451,10 +585,8 @@ function CreateSiteDialog({ open, onOpenChange, projectId }: { open: boolean; on
   const mutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("project_sites").insert({
-        project_id: projectId,
-        name: name.trim(),
-        address: address.trim() || null,
-        area_sqm: areaSqm ? parseFloat(areaSqm) : null,
+        project_id: projectId, name: name.trim(),
+        address: address.trim() || null, area_sqm: areaSqm ? parseFloat(areaSqm) : null,
       });
       if (error) throw error;
     },
@@ -470,9 +602,7 @@ function CreateSiteDialog({ open, onOpenChange, projectId }: { open: boolean; on
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-[15px]">Neuen Standort anlegen</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle className="text-[15px]">Neuen Standort anlegen</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label className="text-[13px]">Name *</Label>
@@ -480,11 +610,11 @@ function CreateSiteDialog({ open, onOpenChange, projectId }: { open: boolean; on
           </div>
           <div className="space-y-1.5">
             <Label className="text-[13px]">Adresse</Label>
-            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="z. B. Musterstraße 1, 80331 München" className="h-9 text-[13px]" />
+            <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Musterstraße 1, 80331 München" className="h-9 text-[13px]" />
           </div>
           <div className="space-y-1.5">
             <Label className="text-[13px]">Fläche (m²)</Label>
-            <Input value={areaSqm} onChange={(e) => setAreaSqm(e.target.value)} type="number" placeholder="z. B. 5000" className="h-9 text-[13px]" />
+            <Input value={areaSqm} onChange={(e) => setAreaSqm(e.target.value)} type="number" placeholder="5000" className="h-9 text-[13px]" />
           </div>
         </div>
         <DialogFooter>
@@ -510,8 +640,7 @@ function CreateConceptDialog({ open, onOpenChange, projectId }: { open: boolean;
     mutationFn: async () => {
       const { data: session } = await supabase.auth.getSession();
       const { error } = await supabase.from("mobility_concepts").insert({
-        project_id: projectId,
-        name: name.trim(),
+        project_id: projectId, name: name.trim(),
         description: description.trim() || null,
         created_by: session.session?.user?.id ?? null,
       });
@@ -519,7 +648,7 @@ function CreateConceptDialog({ open, onOpenChange, projectId }: { open: boolean;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["project-concepts", projectId] });
-      toast.success("Konzept erstellt");
+      toast.success("Konzept wurde angelegt");
       onOpenChange(false);
       setName(""); setDescription("");
     },
@@ -529,9 +658,7 @@ function CreateConceptDialog({ open, onOpenChange, projectId }: { open: boolean;
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-[15px]">Neues Konzept anlegen</DialogTitle>
-        </DialogHeader>
+        <DialogHeader><DialogTitle className="text-[15px]">Neues Konzept anlegen</DialogTitle></DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
             <Label className="text-[13px]">Name *</Label>
@@ -546,6 +673,218 @@ function CreateConceptDialog({ open, onOpenChange, projectId }: { open: boolean;
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
           <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
             {mutation.isPending ? "Erstellt…" : "Konzept erstellen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   CREATE SCENARIO DIALOG
+   ══════════════════════════════════════════════ */
+function CreateScenarioDialog({ open, onOpenChange, projectId, conceptVersions, concepts }: {
+  open: boolean; onOpenChange: (v: boolean) => void; projectId: string;
+  conceptVersions: { id: string; concept_id: string; version_number: number; status: string }[];
+  concepts: { id: string; name: string }[];
+}) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [conceptVersionId, setConceptVersionId] = useState("");
+  const [isBaseline, setIsBaseline] = useState(false);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("scenarios").insert({
+        project_id: projectId,
+        concept_version_id: conceptVersionId,
+        name: name.trim(),
+        description: description.trim() || null,
+        is_baseline: isBaseline,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-scenarios", projectId] });
+      toast.success("Szenario wurde angelegt");
+      onOpenChange(false);
+      setName(""); setDescription(""); setConceptVersionId(""); setIsBaseline(false);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  // Build display options: conceptName + version
+  const options = conceptVersions.map((cv) => {
+    const concept = concepts.find((c) => c.id === cv.concept_id);
+    return { id: cv.id, label: `${concept?.name ?? "–"} – v${cv.version_number}` };
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Neues Szenario anlegen</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Konzept-Version *</Label>
+            <Select value={conceptVersionId} onValueChange={setConceptVersionId}>
+              <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Konzept-Version wählen" /></SelectTrigger>
+              <SelectContent>
+                {options.map((o) => (
+                  <SelectItem key={o.id} value={o.id} className="text-[13px]">{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Szenario Basis" className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Beschreibung</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Beschreibung…" className="text-[13px] min-h-[60px]" rows={2} />
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox id="is-baseline" checked={isBaseline} onCheckedChange={(v) => setIsBaseline(v === true)} />
+            <Label htmlFor="is-baseline" className="text-[13px]">Basisszenario</Label>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || !conceptVersionId || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Erstellt…" : "Szenario erstellen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   CREATE MEASURE DIALOG
+   ══════════════════════════════════════════════ */
+function CreateMeasureDialog({ open, onOpenChange, scenarioId, projectId }: {
+  open: boolean; onOpenChange: (v: boolean) => void; scenarioId: string; projectId: string;
+}) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [reductionValue, setReductionValue] = useState("");
+  const [reductionUnit, setReductionUnit] = useState("Stellplätze");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("measures").insert({
+        scenario_id: scenarioId,
+        project_id: projectId,
+        name: name.trim(),
+        category: category.trim() || null,
+        description: description.trim() || null,
+        reduction_value: reductionValue ? parseFloat(reductionValue) : null,
+        reduction_unit: reductionUnit || null,
+        status: "proposed",
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["scenario-measures", scenarioId] });
+      toast.success("Maßnahme wurde angelegt");
+      onOpenChange(false);
+      setName(""); setCategory(""); setDescription(""); setReductionValue(""); setReductionUnit("Stellplätze");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Neue Maßnahme anlegen</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Name *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Carsharing-Station" className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Kategorie *</Label>
+            <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="z. B. Sharing, ÖPNV, Rad" className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Beschreibung</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Details…" className="text-[13px] min-h-[60px]" rows={2} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Reduktionswert</Label>
+              <Input value={reductionValue} onChange={(e) => setReductionValue(e.target.value)} type="number" placeholder="z. B. 10" className="h-9 text-[13px]" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Einheit</Label>
+              <Input value={reductionUnit} onChange={(e) => setReductionUnit(e.target.value)} placeholder="Stellplätze" className="h-9 text-[13px]" />
+            </div>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || !category.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Erstellt…" : "Maßnahme erstellen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/* ══════════════════════════════════════════════
+   CREATE MONITORING DIALOG (inline)
+   ══════════════════════════════════════════════ */
+function CreateMonitoringDialog({ open, onOpenChange, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; projectId: string }) {
+  const queryClient = useQueryClient();
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [dueDate, setDueDate] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("monitoring_items").insert({
+        project_id: projectId,
+        title: title.trim(),
+        description: description.trim() || null,
+        due_date: dueDate || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-monitoring", projectId] });
+      toast.success("Monitoring-Eintrag erstellt");
+      onOpenChange(false);
+      setTitle(""); setDescription(""); setDueDate("");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Neuen Monitoring-Eintrag anlegen</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Titel *</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="z. B. Carsharing-Nachweis Q3" className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Fälligkeitsdatum</Label>
+            <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Beschreibung</Label>
+            <Textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Details…" className="text-[13px] min-h-[60px]" rows={2} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!title.trim() || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Erstellt…" : "Eintrag erstellen"}
           </Button>
         </DialogFooter>
       </DialogContent>
