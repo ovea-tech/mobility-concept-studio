@@ -39,15 +39,16 @@ export function ComplianceTab({ projectId, project }: ComplianceTabProps) {
       if (!obj) return;
       if (typeof obj === "object" && !Array.isArray(obj)) {
         Object.entries(obj).forEach(([key, val]) => {
-          if (typeof val === "string" && val.length > 0) {
+          if (typeof val === "string") {
             items.push({ id: `${section}-${key}`, label: val, section, extended });
-          } else if (typeof val === "object" && val !== null && !Array.isArray(val)) {
+          } else if (typeof val === "object" && val !== null) {
             const nested = val as any;
-            if (typeof nested.label === "string" && nested.label.length > 0) {
+            if (typeof nested.label === "string" && nested.label) {
               items.push({ id: `${section}-${key}`, label: nested.label, section, extended });
-            } else if (typeof nested.description === "string" && nested.description.length > 0) {
+            } else if (typeof nested.description === "string" && nested.description) {
               items.push({ id: `${section}-${key}`, label: nested.description, section, extended });
             }
+            // Objekte ohne string label/description werden übersprungen
           }
         });
       }
