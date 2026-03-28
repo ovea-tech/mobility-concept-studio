@@ -21,7 +21,14 @@ import OrganizationList from "./pages/admin/OrganizationList";
 import AuditLog from "./pages/admin/AuditLog";
 import PlaceholderPage from "./pages/PlaceholderPage";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
