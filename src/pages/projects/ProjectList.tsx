@@ -5,27 +5,38 @@ import { supabase } from "@/integrations/supabase/client";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Table, TableHeader, TableBody, TableRow, TableHead, TableCell,
 } from "@/components/ui/table";
-import { FolderKanban, Search, Plus } from "lucide-react";
+import { FolderKanban, Search, Plus, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { CreateProjectDialog } from "@/components/dialogs/CreateProjectDialog";
+
+const thClass = "text-[11px] uppercase tracking-wider text-muted-foreground/70 font-medium";
 
 export default function ProjectList() {
   const [search, setSearch] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
 
-  const { data: projects, isLoading } = useQuery({
+  const { data: projects, isLoading, isError, error } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("projects")
-        .select("*")
-        .order("updated_at", { ascending: false });
+        .select(`
+          *,
+          workspaces(name, organizations(name)),
+          jurisdiction_pack_versions(
+            version_label,
+            version_number,
+            jurisdiction_packs(name, municipalities(name))
+          )
+        `)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -59,9 +70,25 @@ export default function ProjectList() {
           </div>
         </div>
       </PageHeader>
+
       <div className="p-6">
         {isLoading ? (
-          <p className="text-[13px] text-muted-foreground">Lädt…</p>
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex gap-4">
+                <Skeleton className="h-4 w-1/4" />
+                <Skeleton className="h-4 w-1/5" />
+                <Skeleton className="h-4 w-1/6" />
+                <Skeleton className="h-4 w-1/6" />
+                <Skeleton className="h-4 w-1/8" />
+              </div>
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="flex items-center gap-2 text-destructive text-[13px] py-8">
+            <AlertCircle className="h-4 w-4" />
+            <span>Fehler beim Laden: {(error as Error)?.message ?? "Unbekannt"}</span>
+          </div>
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={FolderKanban}
@@ -69,38 +96,48 @@ export default function ProjectList() {
             description={
               search
                 ? "Kein Projekt entspricht der Suche."
-                : "Es wurden noch keine Projekte angelegt."
+                : "Noch keine Projekte vorhanden. Legen Sie Ihr erstes Projekt an."
+            }
+            action={
+              !search ? (
+                <Button size="sm" variant="outline" className="text-[13px]" onClick={() => setCreateOpen(true)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Projekt anlegen
+                </Button>
+              ) : undefined
             }
           />
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="text-[12px]">Name</TableHead>
-                <TableHead className="text-[12px]">Status</TableHead>
-                <TableHead className="text-[12px]">Erstellt</TableHead>
-                <TableHead className="text-[12px]">Aktualisiert</TableHead>
+                <TableHead className={thClass}>Name</TableHead>
+                <TableHead className={thClass}>Kommune</TableHead>
+                <TableHead className={thClass}>Regelpaket</TableHead>
+                <TableHead className={thClass}>Status</TableHead>
+                <TableHead className={thClass}>Erstellt</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((project) => (
-                <TableRow
-                  key={project.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => navigate(`/projects/${project.id}`)}
-                >
-                  <TableCell className="font-medium text-[13px]">{project.name}</TableCell>
-                  <TableCell>
-                    <StatusBadge status={project.status} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-[12px]">
-                    {format(new Date(project.created_at), "dd.MM.yyyy")}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-[12px]">
-                    {format(new Date(project.updated_at), "dd.MM.yyyy")}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {filtered.map((project) => {
+                const jpv = project.jurisdiction_pack_versions as any;
+                const packName = jpv?.jurisdiction_packs?.name ?? "–";
+                const muniName = jpv?.jurisdiction_packs?.municipalities?.name ?? "–";
+                return (
+                  <TableRow
+                    key={project.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => navigate(`/projects/${project.id}`)}
+                  >
+                    <TableCell className="font-medium text-[13px]">{project.name}</TableCell>
+                    <TableCell className="text-muted-foreground text-[12px]">{muniName}</TableCell>
+                    <TableCell className="text-muted-foreground text-[12px]">{packName}</TableCell>
+                    <TableCell><StatusBadge status={project.status} /></TableCell>
+                    <TableCell className="text-muted-foreground text-[12px] tabular-nums">
+                      {format(new Date(project.created_at), "dd.MM.yyyy")}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         )}
