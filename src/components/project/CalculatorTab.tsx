@@ -88,7 +88,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       return {
         ...ut,
         housing_type_code: htCode,
-        housing_type_label: benchmark?.label ?? htCode ?? "–",
+        housing_type_label: String(benchmark?.label ?? htCode ?? '–'),
         rate,
         requiredSpaces,
         includedInMf,
@@ -316,7 +316,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
                           <SelectValue placeholder="Auswählen…" />
                         </SelectTrigger>
                         <SelectContent>
-                          {benchmarks.map((b: any) => (
+                          {benchmarks.map((b) => (
                             <SelectItem key={b.code} value={b.code} className="text-[12px]">
                               {b.label}
                             </SelectItem>
