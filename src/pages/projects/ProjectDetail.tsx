@@ -211,6 +211,13 @@ export default function ProjectDetail() {
               {statusMutation.isPending ? "…" : transition.label}
             </Button>
           )}
+          {project.status === 'submitted' && (
+            <Button size="sm" className="h-8 text-[13px]"
+              onClick={() => setApproveConfirmOpen(true)}
+              disabled={statusMutation.isPending}>
+              Als behördlich genehmigt markieren
+            </Button>
+          )}
         </div>
       </div>
 
@@ -246,6 +253,12 @@ export default function ProjectDetail() {
       <SubmitConfirmDialog
         open={submitConfirmOpen}
         onOpenChange={setSubmitConfirmOpen}
+        projectId={project.id}
+        statusMutation={statusMutation}
+      />
+      <ApproveConfirmDialog
+        open={approveConfirmOpen}
+        onOpenChange={setApproveConfirmOpen}
         projectId={project.id}
         statusMutation={statusMutation}
       />
