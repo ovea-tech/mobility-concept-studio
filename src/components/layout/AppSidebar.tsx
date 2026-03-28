@@ -95,24 +95,31 @@ export function AppSidebar() {
         )}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border p-3">
-        <div className="flex items-center gap-2">
-          <Avatar className="h-7 w-7 shrink-0">
-            <AvatarFallback className="text-[10px] font-medium bg-primary/10 text-primary">{initials}</AvatarFallback>
-          </Avatar>
-          {!collapsed && (
-            <div className="flex-1 min-w-0">
-              <div className="text-[12px] font-medium text-sidebar-foreground truncate">{displayName}</div>
-              <button onClick={() => navigate("/profile")} className="text-[10px] text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors">
-                Profil bearbeiten
+        {profileLoading ? (
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-7 w-7 rounded-full shrink-0" />
+            {!collapsed && <Skeleton className="h-4 w-24" />}
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Avatar className="h-7 w-7 shrink-0">
+              <AvatarFallback className="text-[10px] font-medium bg-primary/10 text-primary">{initials}</AvatarFallback>
+            </Avatar>
+            {!collapsed && (
+              <div className="flex-1 min-w-0">
+                <div className="text-[12px] font-medium text-sidebar-foreground truncate">{displayName}</div>
+                <button onClick={() => navigate("/profile")} className="text-[10px] text-sidebar-foreground/50 hover:text-sidebar-foreground transition-colors">
+                  Profil bearbeiten
+                </button>
+              </div>
+            )}
+            {!collapsed && (
+              <button onClick={handleLogout} title="Abmelden" className="h-6 w-6 inline-flex items-center justify-center rounded text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
+                <LogOut className="h-3.5 w-3.5" />
               </button>
-            </div>
-          )}
-          {!collapsed && (
-            <button onClick={handleLogout} title="Abmelden" className="h-6 w-6 inline-flex items-center justify-center rounded text-sidebar-foreground/50 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors">
-              <LogOut className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );
