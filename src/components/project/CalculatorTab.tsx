@@ -74,7 +74,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       const meta = (ut.metadata ?? {}) as any;
       const htCode = meta.housing_type_code as string | undefined;
       const benchmark = benchmarks.find((b: any) => b.code === htCode);
-      const rate = benchmark?.rate ?? null;
+      const rate = benchmark?.rate != null ? parseFloat(String(benchmark.rate)) : null;
       const unitCount = ut.unit_count ?? 0;
       const requiredSpaces = rate != null ? Math.ceil(unitCount * rate) : null;
       const includedInMf = benchmark?.included_in_mf ?? true;
@@ -95,9 +95,9 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
     const E = errichteteStellplaetze;
     const mf = sumN > 0 ? Math.round((E / sumN) * 100) / 100 : null;
 
-    const standardThreshold = ruleset?.calculation_engine?.standard_threshold ?? 0.8;
-    const extendedMin = ruleset?.calculation_engine?.extended_threshold_min ?? 0.3;
-    const absMin = ruleset?.calculation_engine?.absolute_minimum ?? 0.1;
+    const standardThreshold = parseFloat(String(ruleset?.calculation_engine?.standard_threshold ?? 0.8));
+    const extendedMin = parseFloat(String(ruleset?.calculation_engine?.extended_threshold_min ?? 0.3));
+    const absMin = parseFloat(String(ruleset?.calculation_engine?.absolute_minimum ?? 0.1));
 
     const stufe =
       mf === null ? null
@@ -107,10 +107,9 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
         : "below_minimum";
 
     const flaechengewinn = (sumN - E) * 12.5;
-    const sharingPflicht = Math.max(
-      ruleset?.requirements_standard?.sharing?.min_area_qm ?? 12,
-      Math.ceil((useTypes?.length ?? 0) / 10) * (ruleset?.requirements_standard?.sharing?.area_qm_per_10_units ?? 6)
-    );
+    const sharingMinArea = parseFloat(String(ruleset?.requirements_standard?.sharing?.min_area_qm ?? 12));
+    const sharingPer10 = parseFloat(String(ruleset?.requirements_standard?.sharing?.area_qm_per_10_units ?? 6));
+    const sharingPflicht = Math.max(sharingMinArea, Math.ceil((useTypes?.length ?? 0) / 10) * sharingPer10);
     const sharingExtended = flaechengewinn * 0.2;
     const carsharingPflicht = flaechengewinn * 0.1;
     const lastenradPflicht = flaechengewinn * 0.05;
@@ -320,7 +319,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
                     </TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums`}>{row.unit_count ?? 0}</TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums`}>
-                      {row.rate != null ? `${row.rate.toFixed(1)} StP/WE` : "–"}
+                      {row.rate != null ? `${Number(row.rate).toFixed(1)} StP/WE` : "–"}
                     </TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums font-medium bg-muted/30`}>
                       {row.requiredSpaces ?? "–"}
