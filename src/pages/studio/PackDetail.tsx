@@ -24,6 +24,7 @@ import { CreateRuleSetDialog } from "@/components/dialogs/CreateRuleSetDialog";
 import { CreateReviewDialog } from "@/components/dialogs/CreateReviewDialog";
 import { CreateTestCaseDialog } from "@/components/dialogs/CreateTestCaseDialog";
 import { CreateReleaseDialog } from "@/components/dialogs/CreateReleaseDialog";
+import { RulesetViewer } from "@/components/studio/RulesetViewer";
 
 const tabClass =
   "rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none px-3 pb-2 pt-1.5 text-[13px] font-normal data-[state=active]:font-medium";
