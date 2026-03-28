@@ -41,7 +41,7 @@ export default function CustomerDashboard() {
   const counts = {
     draft: allProjects.filter((p) => p.status === "draft").length,
     active: allProjects.filter((p) => p.status === "active").length,
-    in_review: allProjects.filter((p) => p.status === "in_review" || p.status === "submitted").length,
+    in_review: allProjects.filter((p) => p.status === "submitted").length,
     approved: allProjects.filter((p) => p.status === "approved").length,
   };
 
