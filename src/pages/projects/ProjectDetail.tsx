@@ -507,6 +507,12 @@ function UseTypesTab({ projectId }: { projectId: string }) {
           </TableBody>
         </Table>
       )}
+
+      {/* Stellplatzbilanz Section */}
+      {useTypes && useTypes.length > 0 && (
+        <BilanzSection useTypes={useTypes} projectId={projectId} />
+      )}
+
       <CreateUseTypeDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
       {editItem && <EditUseTypeDialog open={!!editItem} onOpenChange={(v) => !v && setEditItem(null)} item={editItem} projectId={projectId} />}
       <DeleteConfirm open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)} title="Nutzungsart löschen?" description="Diese Nutzungsart wird unwiderruflich gelöscht." onConfirm={() => deleteId && deleteMutation.mutate(deleteId)} isPending={deleteMutation.isPending} />
