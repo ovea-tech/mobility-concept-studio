@@ -103,7 +103,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [editProjectOpen, setEditProjectOpen] = useState(false);
-
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
@@ -198,7 +198,9 @@ export default function ProjectDetail() {
             </div>
           </div>
           {transition && (
-            <Button size="sm" className="h-8 text-[13px]" onClick={() => statusMutation.mutate(transition.next)} disabled={statusMutation.isPending}>
+            <Button size="sm" className={`h-8 text-[13px] ${transition.next === 'submitted' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}`}
+              onClick={() => transition.next === 'submitted' ? setSubmitConfirmOpen(true) : statusMutation.mutate(transition.next)}
+              disabled={statusMutation.isPending}>
               {statusMutation.isPending ? "…" : transition.label}
             </Button>
           )}
@@ -229,6 +231,25 @@ export default function ProjectDetail() {
       </Tabs>
 
       <EditProjectDialog open={editProjectOpen} onOpenChange={setEditProjectOpen} project={project} />
+
+      {/* Submission Confirmation */}
+      <AlertDialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-[15px]">Projekt wirklich einreichen?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[13px]">
+              Nach der Einreichung kann das Konzept nicht mehr bearbeitet werden. Bitte bestätigen Sie die Vollständigkeit aller Unterlagen.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { statusMutation.mutate("submitted"); setSubmitConfirmOpen(false); }}
+              disabled={statusMutation.isPending} className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[13px]">
+              {statusMutation.isPending ? "Wird eingereicht…" : "Jetzt einreichen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -507,9 +528,70 @@ function UseTypesTab({ projectId }: { projectId: string }) {
           </TableBody>
         </Table>
       )}
+
+      {/* Stellplatzbilanz Section */}
+      {useTypes && useTypes.length > 0 && (
+        <BilanzSection useTypes={useTypes} projectId={projectId} />
+      )}
+
       <CreateUseTypeDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
       {editItem && <EditUseTypeDialog open={!!editItem} onOpenChange={(v) => !v && setEditItem(null)} item={editItem} projectId={projectId} />}
       <DeleteConfirm open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)} title="Nutzungsart löschen?" description="Diese Nutzungsart wird unwiderruflich gelöscht." onConfirm={() => deleteId && deleteMutation.mutate(deleteId)} isPending={deleteMutation.isPending} />
+    </div>
+  );
+}
+
+/* ── Stellplatzbilanz Section ── */
+function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: string }) {
+  const { data: scenarios } = useQuery({
+    queryKey: ["scenarios-bilanz", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("scenarios").select("total_reduction_pct, is_baseline").eq("project_id", projectId);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const categorySums: Record<string, number> = {};
+  useTypes.forEach((ut) => {
+    const cat = ut.category || "Sonstiges";
+    categorySums[cat] = (categorySums[cat] || 0) + (ut.unit_count ?? 0);
+  });
+
+  const activeReduction = scenarios?.find(s => s.is_baseline)?.total_reduction_pct ?? scenarios?.[0]?.total_reduction_pct ?? null;
+
+  return (
+    <div className="mt-6 space-y-4">
+      <div className="border border-border rounded-md bg-card p-4">
+        <h3 className="text-[13px] font-medium text-foreground mb-3">Zusammenfassung nach Kategorie</h3>
+        <div className="grid grid-cols-3 gap-3">
+          {Object.entries(categorySums).map(([cat, count]) => (
+            <div key={cat} className="bg-muted/30 rounded px-3 py-2">
+              <div className="text-[11px] text-muted-foreground">{cat}</div>
+              <div className="text-[15px] font-semibold text-foreground tabular-nums">{count} Einheiten</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="border border-border rounded-md bg-card p-4">
+        <h3 className="text-[13px] font-medium text-foreground mb-1">Stellplatzbilanz</h3>
+        <p className="text-[11px] text-muted-foreground mb-3">Die Stellplatzbilanz wird auf Basis der Nutzungsarten und der kommunalen Stellplatzsatzung berechnet.</p>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <div className="text-[11px] text-muted-foreground">Pflichtstellplätze</div>
+            <div className="text-[15px] font-semibold text-foreground">–</div>
+          </div>
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <div className="text-[11px] text-muted-foreground">Beantragte Reduktion</div>
+            <div className="text-[15px] font-semibold text-foreground tabular-nums">{activeReduction != null ? `${activeReduction}%` : "–"}</div>
+          </div>
+          <div className="bg-muted/30 rounded px-3 py-2">
+            <div className="text-[11px] text-muted-foreground">Verbleibend</div>
+            <div className="text-[15px] font-semibold text-foreground">–</div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -741,7 +823,20 @@ function ScenarioCard({ scenario, projectId }: { scenario: any; projectId: strin
               </Table>
             )}
 
-            {/* Justifications (P3) */}
+            {/* Measure Aggregation */}
+            {measures && measures.length > 0 && (() => {
+              const spSum = measures.reduce((s, m) => s + (m.reduction_unit === "Stellplätze" && m.reduction_value ? Number(m.reduction_value) : 0), 0);
+              const pctSum = measures.reduce((s, m) => s + (m.reduction_unit === "%" && m.reduction_value ? Number(m.reduction_value) : 0), 0);
+              const target = scenario.total_reduction_pct;
+              const met = target != null && pctSum >= target;
+              return (
+                <div className={`mt-2 px-3 py-2 rounded text-[12px] font-medium border ${met ? "border-green-500/30 bg-green-500/5 text-green-700 dark:text-green-400" : "border-orange-500/30 bg-orange-500/5 text-orange-700 dark:text-orange-400"}`}>
+                  Gesamtreduktion: {spSum > 0 ? `${spSum} Stellplätze` : ""}{spSum > 0 && pctSum > 0 ? " / " : ""}{pctSum > 0 ? `${pctSum}%` : ""}{spSum === 0 && pctSum === 0 ? "–" : ""}
+                  {target != null && <span className="ml-2 text-[11px] font-normal">(Ziel: {target}%)</span>}
+                </div>
+              );
+            })()}
+
             {open && (
               <JustificationsSection projectId={projectId} scenarioMeasures={measures ?? []} />
             )}

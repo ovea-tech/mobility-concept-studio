@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/shared/StatusBadge";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -287,6 +292,12 @@ function SourceDocsTab({ municipalityId }: { municipalityId: string }) {
 
 /* ───── RULE CANDIDATES ───── */
 function RuleCandidatesTab({ municipalityId }: { municipalityId: string }) {
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [rawText, setRawText] = useState("");
+
   const { data, isLoading } = useQuery({
     queryKey: ["pack-rule-candidates", municipalityId],
     queryFn: async () => {
@@ -297,29 +308,92 @@ function RuleCandidatesTab({ municipalityId }: { municipalityId: string }) {
     },
     enabled: !!municipalityId,
   });
-  if (isLoading) return <p className={tdMuted}>Lädt…</p>;
-  if (!data?.length) return <EmptyState icon={AlertTriangle} title="Keine Rule Candidates" description="Leiten Sie Regelkandidaten aus Quelldokumenten ab." />;
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { data: user } = await supabase.auth.getUser();
+      const { error } = await supabase.from("rule_candidates").insert({
+        municipality_id: municipalityId,
+        title: title.trim(),
+        description: description.trim() || null,
+        raw_text: rawText.trim() || null,
+        created_by: user.user?.id ?? null,
+      } as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pack-rule-candidates", municipalityId] });
+      toast.success("Regelkandidat erstellt");
+      setCreateOpen(false);
+      setTitle(""); setDescription(""); setRawText("");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
   return (
-    <Table><TableHeader><TableRow>
-      <TableHead className={thClass}>Titel</TableHead>
-      <TableHead className={thClass}>Quelldokument</TableHead>
-      <TableHead className={thClass}>Status</TableHead>
-      <TableHead className={thClass}>Erstellt</TableHead>
-    </TableRow></TableHeader><TableBody>
-      {data.map((rc) => (
-        <TableRow key={rc.id}>
-          <TableCell className={`font-medium ${tdClass}`}>{rc.title}</TableCell>
-          <TableCell className={tdMuted}>{(rc.source_documents as any)?.name ?? "–"}</TableCell>
-          <TableCell><StatusBadge status={rc.status} /></TableCell>
-          <TableCell className={tdMuted}>{format(new Date(rc.created_at), "dd.MM.yyyy")}</TableCell>
-        </TableRow>
-      ))}
-    </TableBody></Table>
+    <>
+      <TabToolbar>
+        <span className="text-[13px] font-medium">{data?.length ?? 0} Regelkandidaten</span>
+        <Button size="sm" variant="outline" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)} disabled={!municipalityId}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Kandidat
+        </Button>
+      </TabToolbar>
+      {isLoading ? <p className={tdMuted}>Lädt…</p> :
+       !data?.length ? <EmptyState icon={AlertTriangle} title="Keine Rule Candidates" description="Leiten Sie Regelkandidaten aus Quelldokumenten ab." /> : (
+        <Table><TableHeader><TableRow>
+          <TableHead className={thClass}>Titel</TableHead>
+          <TableHead className={thClass}>Quelldokument</TableHead>
+          <TableHead className={thClass}>Status</TableHead>
+          <TableHead className={thClass}>Erstellt</TableHead>
+        </TableRow></TableHeader><TableBody>
+          {data.map((rc) => (
+            <TableRow key={rc.id}>
+              <TableCell className={`font-medium ${tdClass}`}>{rc.title}</TableCell>
+              <TableCell className={tdMuted}>{(rc.source_documents as any)?.name ?? "–"}</TableCell>
+              <TableCell><StatusBadge status={rc.status} /></TableCell>
+              <TableCell className={tdMuted}>{format(new Date(rc.created_at), "dd.MM.yyyy")}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody></Table>
+      )}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="text-[15px]">Neuen Regelkandidaten anlegen</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Titel *</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="z. B. Stellplatzschlüssel Wohnen" className="h-9 text-[13px]" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Beschreibung</Label>
+              <Input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Kurzbeschreibung…" className="h-9 text-[13px]" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Regeltext</Label>
+              <Textarea value={rawText} onChange={(e) => setRawText(e.target.value)} placeholder="Originaltext aus dem Quelldokument…" className="text-[13px] min-h-[60px]" rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)} className="text-[13px]">Abbrechen</Button>
+            <Button size="sm" onClick={() => createMutation.mutate()} disabled={!title.trim() || createMutation.isPending} className="text-[13px]">
+              {createMutation.isPending ? "Erstellt…" : "Kandidat erstellen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
 /* ───── RULES ───── */
 function RulesTab({ packVersionId }: { packVersionId: string }) {
+  const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [title, setTitle] = useState("");
+  const [ruleDescription, setRuleDescription] = useState("");
+  const [category, setCategory] = useState("");
+
   const { data, isLoading } = useQuery({
     queryKey: ["pack-rules", packVersionId],
     queryFn: async () => {
@@ -330,28 +404,94 @@ function RulesTab({ packVersionId }: { packVersionId: string }) {
     },
     enabled: !!packVersionId,
   });
-  if (isLoading) return <p className={tdMuted}>Lädt…</p>;
-  if (!data?.length) return <EmptyState icon={Scale} title="Keine Regeln in dieser Version" />;
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const { data: user } = await supabase.auth.getUser();
+      const { error } = await supabase.from("rules").insert({
+        pack_version_id: packVersionId,
+        code: code.trim(),
+        title: title.trim(),
+        description: ruleDescription.trim() || null,
+        category: category.trim() || null,
+        created_by: user.user?.id ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["pack-rules", packVersionId] });
+      queryClient.invalidateQueries({ queryKey: ["pack-rules-count", packVersionId] });
+      toast.success("Regel erstellt");
+      setCreateOpen(false);
+      setCode(""); setTitle(""); setRuleDescription(""); setCategory("");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  if (!packVersionId) return <EmptyState icon={Scale} title="Bitte erst eine Version auswählen" />;
+
   return (
-    <Table><TableHeader><TableRow>
-      <TableHead className={thClass}>Code</TableHead>
-      <TableHead className={thClass}>Titel</TableHead>
-      <TableHead className={thClass}>Kandidat</TableHead>
-      <TableHead className={thClass}>Kategorie</TableHead>
-      <TableHead className={thClass}>Typ</TableHead>
-      <TableHead className={thClass}>Status</TableHead>
-    </TableRow></TableHeader><TableBody>
-      {data.map((r) => (
-        <TableRow key={r.id}>
-          <TableCell className={`font-mono font-medium ${tdClass}`}>{r.code}</TableCell>
-          <TableCell className={tdClass}>{r.title}</TableCell>
-          <TableCell className={tdMuted}>{(r.rule_candidates as any)?.title ?? "–"}</TableCell>
-          <TableCell className={tdMuted}>{r.category || "–"}</TableCell>
-          <TableCell className={tdMuted}>{r.rule_type || "–"}</TableCell>
-          <TableCell><StatusBadge status={r.status} /></TableCell>
-        </TableRow>
-      ))}
-    </TableBody></Table>
+    <>
+      <TabToolbar>
+        <span className="text-[13px] font-medium">{data?.length ?? 0} Regeln</span>
+        <Button size="sm" variant="outline" className="h-8 text-[13px]" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Regel
+        </Button>
+      </TabToolbar>
+      {isLoading ? <p className={tdMuted}>Lädt…</p> :
+       !data?.length ? <EmptyState icon={Scale} title="Keine Regeln in dieser Version" /> : (
+        <Table><TableHeader><TableRow>
+          <TableHead className={thClass}>Code</TableHead>
+          <TableHead className={thClass}>Titel</TableHead>
+          <TableHead className={thClass}>Kandidat</TableHead>
+          <TableHead className={thClass}>Kategorie</TableHead>
+          <TableHead className={thClass}>Typ</TableHead>
+          <TableHead className={thClass}>Status</TableHead>
+        </TableRow></TableHeader><TableBody>
+          {data.map((r) => (
+            <TableRow key={r.id}>
+              <TableCell className={`font-mono font-medium ${tdClass}`}>{r.code}</TableCell>
+              <TableCell className={tdClass}>{r.title}</TableCell>
+              <TableCell className={tdMuted}>{(r.rule_candidates as any)?.title ?? "–"}</TableCell>
+              <TableCell className={tdMuted}>{r.category || "–"}</TableCell>
+              <TableCell className={tdMuted}>{r.rule_type || "–"}</TableCell>
+              <TableCell><StatusBadge status={r.status} /></TableCell>
+            </TableRow>
+          ))}
+        </TableBody></Table>
+      )}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="text-[15px]">Neue Regel anlegen</DialogTitle></DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-[13px]">Code *</Label>
+                <Input value={code} onChange={(e) => setCode(e.target.value)} placeholder="z. B. R-001" className="h-9 text-[13px] font-mono" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-[13px]">Kategorie</Label>
+                <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="z. B. Stellplatz" className="h-9 text-[13px]" />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Titel *</Label>
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Regeltitel…" className="h-9 text-[13px]" />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-[13px]">Beschreibung</Label>
+              <Textarea value={ruleDescription} onChange={(e) => setRuleDescription(e.target.value)} placeholder="Regelbeschreibung…" className="text-[13px] min-h-[60px]" rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setCreateOpen(false)} className="text-[13px]">Abbrechen</Button>
+            <Button size="sm" onClick={() => createMutation.mutate()} disabled={!code.trim() || !title.trim() || createMutation.isPending} className="text-[13px]">
+              {createMutation.isPending ? "Erstellt…" : "Regel erstellen"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
