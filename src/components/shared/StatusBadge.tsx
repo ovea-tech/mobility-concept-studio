@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 const statusConfig: Record<string, { label: string; variant: string }> = {
   // project_status
   draft: { label: "Entwurf", variant: "bg-muted text-muted-foreground" },
-  active: { label: "Aktiv", variant: "bg-primary/10 text-primary" },
-  submitted: { label: "Eingereicht", variant: "bg-amber-500/10 text-amber-700" },
-  approved: { label: "Freigegeben", variant: "bg-emerald-500/10 text-emerald-700" },
+  active: { label: "In Bearbeitung", variant: "bg-primary/10 text-primary" },
+  submitted: { label: "Finalisiert", variant: "bg-violet-500/10 text-violet-700" },
+  approved: { label: "Behördlich genehmigt", variant: "bg-emerald-500/10 text-emerald-700" },
   archived: { label: "Archiviert", variant: "bg-muted text-muted-foreground" },
   // monitoring_status
   pending: { label: "Ausstehend", variant: "bg-muted text-muted-foreground" },

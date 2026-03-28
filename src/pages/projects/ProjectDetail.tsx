@@ -92,9 +92,8 @@ function ActionIcon({ icon: Icon, onClick, title, variant = "default" }: { icon:
 
 /* ── Status workflow helpers ── */
 const STATUS_TRANSITIONS: Record<string, { label: string; next: string }> = {
-  draft: { label: "Aktivieren", next: "active" },
-  active: { label: "Einreichen", next: "submitted" },
-  submitted: { label: "Genehmigen", next: "approved" },
+  draft: { label: "Planung starten", next: "active" },
+  active: { label: "Konzept finalisieren", next: "submitted" },
 };
 
 /* ══════════════════════════════════════════════
@@ -290,9 +289,9 @@ function EditProjectDialog({ open, onOpenChange, project }: { open: boolean; onO
               <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="draft">Entwurf</SelectItem>
-                <SelectItem value="active">Aktiv</SelectItem>
-                <SelectItem value="submitted">Eingereicht</SelectItem>
-                <SelectItem value="approved">Freigegeben</SelectItem>
+                <SelectItem value="active">In Bearbeitung</SelectItem>
+                <SelectItem value="submitted">Finalisiert</SelectItem>
+                <SelectItem value="approved">Behördlich genehmigt</SelectItem>
                 <SelectItem value="archived">Archiviert</SelectItem>
               </SelectContent>
             </Select>
@@ -1904,7 +1903,7 @@ function SubmitConfirmDialog({ open, onOpenChange, projectId, statusMutation }: 
       queryClient.invalidateQueries({ queryKey: ["project", projectId] });
       queryClient.invalidateQueries({ queryKey: ["projects"] });
       queryClient.invalidateQueries({ queryKey: ["submission-snapshots", projectId] });
-      toast.success("Projekt eingereicht – Snapshot erstellt");
+      toast.success("Konzept wurde finalisiert – Snapshot erstellt");
       onOpenChange(false);
     } catch (err: any) {
       toast.error("Fehler: " + (err.message || "Unbekannt"));
@@ -1917,16 +1916,16 @@ function SubmitConfirmDialog({ open, onOpenChange, projectId, statusMutation }: 
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle className="text-[15px]">Projekt wirklich einreichen?</AlertDialogTitle>
+          <AlertDialogTitle className="text-[15px]">Konzept finalisieren?</AlertDialogTitle>
           <AlertDialogDescription className="text-[13px]">
-            Nach der Einreichung kann das Konzept nicht mehr bearbeitet werden. Bitte bestätigen Sie die Vollständigkeit aller Unterlagen.
+            Das Konzept wird als abgeschlossen markiert und eingefroren. Alle Planungsdaten werden als revisionssicherer Snapshot gespeichert. Änderungen sind danach nicht mehr möglich. Das Konzept kann anschließend für die Behördeneinreichung vorbereitet werden.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel className="text-[13px]">Abbrechen</AlertDialogCancel>
           <AlertDialogAction onClick={handleSubmit} disabled={isPending}
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-[13px]">
-            {isPending ? "Wird eingereicht…" : "Jetzt einreichen"}
+            {isPending ? "Wird finalisiert…" : "Jetzt finalisieren"}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -1949,15 +1948,15 @@ function SnapshotsSection({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <TabToolbar label="Einreichungen" count={snapshots?.length} />
+      <TabToolbar label="Finalisierungen" count={snapshots?.length} />
       {isLoading ? <LoadingSkeleton rows={2} /> :
        !snapshots?.length ? (
-        <p className="text-[13px] text-muted-foreground">Noch keine Einreichungen. Nach der Einreichung wird hier ein revisionssicherer Snapshot gespeichert.</p>
+        <p className="text-[13px] text-muted-foreground">Noch keine Finalisierung. Nach der Finalisierung wird hier ein revisionssicherer Snapshot des Konzeptstands gespeichert.</p>
       ) : (
         <Table>
           <TableHeader><TableRow>
             <TableHead className={thClass}>Version</TableHead>
-            <TableHead className={thClass}>Eingereicht am</TableHead>
+            <TableHead className={thClass}>Finalisiert am</TableHead>
             <TableHead className={thClass}>Status</TableHead>
           </TableRow></TableHeader>
           <TableBody>
@@ -1965,7 +1964,7 @@ function SnapshotsSection({ projectId }: { projectId: string }) {
               <TableRow key={s.id}>
                 <TableCell className={`font-medium ${tdClass} font-mono`}>{s.version_label}</TableCell>
                 <TableCell className={tdMuted}>{s.submitted_at ? format(new Date(s.submitted_at), "dd.MM.yyyy HH:mm") : "–"}</TableCell>
-                <TableCell><Badge variant="secondary" className="text-[10px]">Eingereicht</Badge></TableCell>
+                <TableCell><Badge variant="secondary" className="text-[10px]">Finalisiert</Badge></TableCell>
               </TableRow>
             ))}
           </TableBody>

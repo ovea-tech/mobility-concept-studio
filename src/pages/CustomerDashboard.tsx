@@ -68,9 +68,9 @@ export default function CustomerDashboard() {
         <div className="grid grid-cols-4 gap-3">
           {[
             { label: "Entwurf", count: counts.draft },
-            { label: "Aktiv", count: counts.active },
-            { label: "Eingereicht", count: counts.submitted },
-            { label: "Freigegeben", count: counts.approved },
+            { label: "In Bearbeitung", count: counts.active },
+            { label: "Finalisiert", count: counts.submitted },
+            { label: "Genehmigt", count: counts.approved },
           ].map((s) => (
             <div key={s.label} className="border border-border rounded-md bg-card px-4 py-3">
               {projectsLoading ? (
