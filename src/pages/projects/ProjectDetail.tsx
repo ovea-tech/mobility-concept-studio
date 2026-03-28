@@ -573,6 +573,7 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
       </div>
     </div>
   );
+}
 
 /* ══════════════════════════════════════════════
    CONCEPTS TAB
