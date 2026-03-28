@@ -30,21 +30,10 @@ export function CalculatorTab({ projectId, project }: CalculatorTabProps) {
   const queryClient = useQueryClient();
   const isLocked = project?.mf_calculation_locked === true;
 
-  /* ── Ruleset laden ── */
-  const { data: packVersionData, isLoading: rulesetLoading } = useQuery({
-    queryKey: ["ruleset", project?.jurisdiction_pack_version_id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("jurisdiction_pack_versions")
-        .select("ruleset, version_label")
-        .eq("id", project.jurisdiction_pack_version_id)
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!project?.jurisdiction_pack_version_id,
-  });
-
+  /* ── Ruleset aus project-Join lesen (kein separater Query nötig) ── */
+  const packVersionData = project?.jurisdiction_pack_versions as any;
   const ruleset = packVersionData?.ruleset as any;
+  const rulesetLoading = false;
   const engineType = ruleset?.calculation_engine?.type;
   const benchmarks: any[] = ruleset?.calculation_engine?.residential_benchmarks ?? [];
 

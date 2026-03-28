@@ -115,7 +115,7 @@ export default function ProjectDetail() {
           *,
           workspaces(name, organizations(name)),
           jurisdiction_pack_versions(
-            version_number, version_label, status,
+            id, version_number, version_label, status, ruleset,
             jurisdiction_packs(name, municipalities(name, state))
           )
         `)

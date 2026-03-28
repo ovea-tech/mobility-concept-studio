@@ -1,6 +1,4 @@
 import React, { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
@@ -22,18 +20,9 @@ interface CheckItem {
 export function ComplianceTab({ projectId, project }: ComplianceTabProps) {
   const [checked, setChecked] = useState<Record<string, boolean>>({});
 
-  const { data: packVersionData, isLoading } = useQuery({
-    queryKey: ["ruleset", project?.jurisdiction_pack_version_id],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("jurisdiction_pack_versions")
-        .select("ruleset, version_label")
-        .eq("id", project.jurisdiction_pack_version_id)
-        .maybeSingle();
-      return data;
-    },
-    enabled: !!project?.jurisdiction_pack_version_id,
-  });
+  /* ── Ruleset aus project-Join lesen (kein separater Query nötig) ── */
+  const packVersionData = project?.jurisdiction_pack_versions as any;
+  const isLoading = false;
 
   const ruleset = packVersionData?.ruleset as any;
   const mf = project?.mobility_factor != null ? Number(project.mobility_factor) : null;
