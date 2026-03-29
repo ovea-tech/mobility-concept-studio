@@ -44,6 +44,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       rate:           parseFloat(String(b?.rate ?? 0)),
       included_in_mf: b?.included_in_mf !== false && b?.included_in_mf !== 'false',
     })).filter(b => b.code !== '');
+  const rulesetLoading = rulesetLoadingPre || benchmarks.length === 0;
 
   /* ── Nutzungsarten ── */
   const { data: useTypes } = useQuery({
