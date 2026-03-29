@@ -789,6 +789,24 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
     },
   });
 
+  const { data: baselineReqs } = useQuery({
+    queryKey: ["baseline_requirements_bilanz", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("baseline_requirements")
+        .select("required_spaces").eq("project_id", projectId);
+      return data ?? [];
+    },
+  });
+
+  const { data: projectData } = useQuery({
+    queryKey: ["project_bilanz", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("projects")
+        .select("erected_parking_spaces, mobility_factor").eq("id", projectId).single();
+      return data;
+    },
+  });
+
   const categorySums: Record<string, number> = {};
   useTypes.forEach((ut) => {
     const cat = ut.category || "Sonstiges";
@@ -796,6 +814,9 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
   });
 
   const activeReduction = scenarios?.find(s => s.is_baseline)?.total_reduction_pct ?? scenarios?.[0]?.total_reduction_pct ?? null;
+  const sumN = baselineReqs?.reduce((s, r) => s + (Number(r.required_spaces) || 0), 0) ?? 0;
+  const E = projectData?.erected_parking_spaces ?? null;
+  const verbleibend = E != null && sumN > 0 ? E : null;
 
   return (
     <div className="mt-6 space-y-4">
@@ -817,7 +838,7 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
         <div className="grid grid-cols-3 gap-3">
           <div className="bg-muted/30 rounded px-3 py-2">
             <div className="text-[11px] text-muted-foreground">Pflichtstellplätze</div>
-            <div className="text-[15px] font-semibold text-foreground">–</div>
+            <div className="text-[15px] font-semibold text-foreground tabular-nums">{sumN > 0 ? sumN : "–"}</div>
           </div>
           <div className="bg-muted/30 rounded px-3 py-2">
             <div className="text-[11px] text-muted-foreground">Beantragte Reduktion</div>
@@ -825,7 +846,7 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
           </div>
           <div className="bg-muted/30 rounded px-3 py-2">
             <div className="text-[11px] text-muted-foreground">Verbleibend</div>
-            <div className="text-[15px] font-semibold text-foreground">–</div>
+            <div className="text-[15px] font-semibold text-foreground tabular-nums">{verbleibend != null ? verbleibend : "–"}</div>
           </div>
         </div>
       </div>
