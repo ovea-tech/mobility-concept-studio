@@ -341,44 +341,46 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
                   <TableRow key={row.id}>
                     <TableCell className={`${tdClass} font-medium`}>{row.name}</TableCell>
                     <TableCell>
-                      <select
-                        value={row.housing_type_code ?? ""}
-                        onChange={(e) => {
-                          if (!isLocked && e.target.value) {
-                            setHousingTypeMutation.mutate({ useTypeId: row.id, code: e.target.value });
-                          }
-                        }}
-                        disabled={isLocked}
-                        className="h-7 w-44 text-[12px] border border-input rounded-md bg-background px-2 text-foreground disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        <option value="">Auswählen…</option>
-                        {benchmarks.map((b) => (
-                          <option key={String(b.code)} value={String(b.code)}>
-                            {String(b.label)}
-                          </option>
-                        ))}
-                      </select>
+                      {row.isResidential ? (
+                        <select
+                          value={row.housing_type_code ?? ""}
+                          onChange={(e) => {
+                            if (!isLocked && e.target.value) {
+                              setHousingTypeMutation.mutate({ useTypeId: row.id, code: e.target.value });
+                            }
+                          }}
+                          disabled={isLocked}
+                          className="h-7 w-44 text-[12px] border border-input rounded-md bg-background px-2 text-foreground disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-ring"
+                        >
+                          <option value="">Auswählen…</option>
+                          {benchmarks.map((b) => (
+                            <option key={String(b.code)} value={String(b.code)}>
+                              {String(b.label)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-[10px]">{row.category}</Badge>
+                          <span className="text-[11px] text-muted-foreground">{row.gross_floor_area_sqm} m² BGF</span>
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell className={`${tdClass} text-right tabular-nums`}>{row.unit_count ?? 0}</TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums`}>
-                      {row.rate != null ? `${Number(row.rate).toFixed(1)} StP/WE` : "–"}
+                      {row.isResidential ? (row.unit_count ?? 0) : "–"}
+                    </TableCell>
+                    <TableCell className={`${tdClass} text-right tabular-nums`}>
+                      {row.rate != null ? (row.isResidential ? `${Number(row.rate).toFixed(1)} StP/WE` : `1/${row.rate} m²`) : "–"}
                     </TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums font-medium bg-muted/30`}>
                       {row.requiredSpaces ?? "–"}
                     </TableCell>
                     <TableCell>
-                      {row.housing_type_code ? (
+                      {(row.housing_type_code || !row.isResidential) ? (
                         row.includedInMf ? (
                           <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-0">Ja</Badge>
                         ) : (
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Badge variant="secondary" className="text-[10px] border-0">Nein</Badge>
-                            </TooltipTrigger>
-                            <TooltipContent className="text-[11px]">
-                              {row.housing_type_label} fließt nicht in MF-Berechnung ein
-                            </TooltipContent>
-                          </Tooltip>
+                          <Badge variant="secondary" className="text-[10px] border-0">Nein</Badge>
                         )
                       ) : (
                         <span className="text-[11px] text-muted-foreground">–</span>
