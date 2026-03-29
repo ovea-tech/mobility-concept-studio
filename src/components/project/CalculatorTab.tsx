@@ -91,6 +91,23 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
 
     const rows = (useTypes ?? []).map((ut) => {
       const meta = (ut.metadata ?? {}) as any;
+      const cat = ut.category as string | undefined;
+      const nonRes = cat ? NON_RESIDENTIAL_RATES[cat] : undefined;
+
+      if (nonRes && cat !== "Wohnen") {
+        // Non-residential: rate based on BGF
+        const bgf = ut.gross_floor_area_sqm ?? 0;
+        const requiredSpaces = bgf > 0 ? Math.ceil(bgf / nonRes.ratePerQm) : null;
+        return {
+          id: ut.id, name: ut.name ?? '–', unit_count: ut.unit_count,
+          category: cat, gross_floor_area_sqm: bgf,
+          housing_type_code: undefined, housing_type_label: nonRes.label,
+          rate: nonRes.ratePerQm, rateLabel: nonRes.unitLabel,
+          requiredSpaces, includedInMf: true, isResidential: false,
+        };
+      }
+
+      // Residential (Wohnen) logic
       const htCode = meta.housing_type_code as string | undefined;
       const benchmark = benchmarks.find((b: any) => b.code === htCode);
       const rate = benchmark?.rate != null ? parseFloat(String(benchmark.rate)) : null;
@@ -98,14 +115,11 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       const requiredSpaces = rate != null ? Math.ceil(unitCount * rate) : null;
       const includedInMf = benchmark?.included_in_mf ?? true;
       return {
-        id: ut.id,
-        name: ut.name ?? '–',
-        unit_count: ut.unit_count,
-        housing_type_code: htCode,
-        housing_type_label: String(benchmark?.label ?? htCode ?? '–'),
-        rate,
-        requiredSpaces,
-        includedInMf,
+        id: ut.id, name: ut.name ?? '–', unit_count: ut.unit_count,
+        category: cat ?? "Wohnen", gross_floor_area_sqm: ut.gross_floor_area_sqm,
+        housing_type_code: htCode, housing_type_label: String(benchmark?.label ?? htCode ?? '–'),
+        rate, rateLabel: "StP/WE",
+        requiredSpaces, includedInMf, isResidential: true,
       };
     });
 
