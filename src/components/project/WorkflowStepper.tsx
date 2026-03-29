@@ -17,11 +17,11 @@ interface WorkflowStepperProps {
 }
 
 export const WORKFLOW_STEPS = [
-  { id: 0, label: "Grundlage", tabs: ["overview"], icon: MapPin },
+  { id: 0, label: "Grundlage", tabs: ["overview", "sitemap"], icon: MapPin },
   { id: 1, label: "Berechnung", tabs: ["usetypes", "calculator"], icon: Calculator },
   { id: 2, label: "Nachweis", tabs: ["compliance", "concepts", "scenarios"], icon: ClipboardCheck },
   { id: 3, label: "Monitoring", tabs: ["monitoring"], icon: Bell },
-  { id: 4, label: "Einreichung", tabs: ["documents"], icon: FileText },
+  { id: 4, label: "Einreichung", tabs: ["documents", "drawing"], icon: FileText },
 ];
 
 export function WorkflowStepper({ steps, activeStep, onStepClick }: WorkflowStepperProps) {
