@@ -37,10 +37,17 @@ interface SiteMapTabProps {
 }
 
 const STOP_COLORS: Record<string, string> = {
-  "U-Bahn": "#0057A8",
-  "S-Bahn": "#009252",
-  "Tram": "#E2001A",
-  "Bus": "#F5A400",
+  "U-Bahn": "#7c3aed",
+  "S-Bahn": "#059669",
+  "Tram": "#d97706",
+  "Bus": "#3b82f6",
+};
+
+const STOP_RADII: Record<string, number> = {
+  "U-Bahn": 9,
+  "S-Bahn": 9,
+  "Tram": 7,
+  "Bus": 5,
 };
 
 const NAH_ICONS: Record<string, string> = {
@@ -62,9 +69,10 @@ function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 
 function detectType(tags: any): TransitStop["type"] {
   if (!tags) return "Bus";
-  if (tags.railway === "station" && tags.station === "subway") return "U-Bahn";
-  if (tags.railway === "station" || tags.railway === "halt") return "S-Bahn";
-  if (tags.railway === "tram_stop") return "Tram";
+  if (tags.station === "subway" || tags.network?.includes("U-Bahn")) return "U-Bahn";
+  if (tags.network?.includes("S-Bahn") || tags.railway === "halt") return "S-Bahn";
+  if (tags.railway === "tram_stop" || tags.tram === "yes") return "Tram";
+  if (tags.railway === "station") return "S-Bahn";
   return "Bus";
 }
 
@@ -102,9 +110,9 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
   const oepnvStatus = center
     ? allStops.some((s) => {
         const dist = haversineDistance(center[0], center[1], s.lat, s.lng);
-        if ((s.type === "Bus" || s.type === "Tram") && dist <= 300) return true;
-        if ((s.type === "U-Bahn" || s.type === "S-Bahn") && dist <= 600 && s.takt_hvz <= 10) return true;
-        return false;
+        if (s.type === "U-Bahn" || s.type === "S-Bahn") return dist <= 600 && s.takt_hvz <= 10;
+        if (s.type === "Tram") return dist <= 400;
+        return dist <= 300;
       })
     : false;
 
@@ -129,12 +137,13 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
     const [lat, lon] = center;
     setOverpassLoading(true);
 
-    const transitQuery = `[out:json][timeout:30];(node["railway"="station"](around:700,${lat},${lon});node["railway"="halt"](around:700,${lat},${lon});node["railway"="tram_stop"](around:500,${lat},${lon});node["highway"="bus_stop"](around:400,${lat},${lon});node["public_transport"="platform"](around:700,${lat},${lon}););out body;`;
-    const nahQuery = `[out:json][timeout:30];(nwr["shop"="supermarket"](around:600,${lat},${lon});nwr["shop"="convenience"](around:500,${lat},${lon});nwr["amenity"="pharmacy"](around:500,${lat},${lon});nwr["amenity"="doctors"](around:500,${lat},${lon});nwr["shop"="bakery"](around:400,${lat},${lon}););out center;`;
+    const transitQuery = `[out:json][timeout:25];(node["railway"="station"](around:700,${lat},${lon});node["railway"="halt"](around:700,${lat},${lon});node["railway"="tram_stop"](around:500,${lat},${lon});node["highway"="bus_stop"](around:400,${lat},${lon});node["public_transport"="platform"](around:700,${lat},${lon}););out body;`;
+    const nahQuery = `[out:json][timeout:25];(nwr["shop"="supermarket"](around:600,${lat},${lon});nwr["shop"="convenience"](around:500,${lat},${lon});nwr["amenity"="pharmacy"](around:500,${lat},${lon});nwr["amenity"="doctors"](around:500,${lat},${lon});nwr["shop"="bakery"](around:400,${lat},${lon}););out center;`;
 
     const fetchTransit = fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
       body: "data=" + encodeURIComponent(transitQuery),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
     })
       .then((r) => r.json())
       .then((data) => {
@@ -144,14 +153,15 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
           const key = `${el.lat?.toFixed(4)}_${el.lon?.toFixed(4)}`;
           if (seen.has(key) || !el.lat || !el.lon) continue;
           seen.add(key);
+          const type = detectType(el.tags);
           stops.push({
-            id: el.id.toString(),
+            id: "osm_" + el.id.toString(),
             name: el.tags?.name || el.tags?.["name:de"] || "Haltestelle",
             lat: el.lat,
             lng: el.lon,
-            type: detectType(el.tags),
+            type,
             lines: el.tags?.ref || el.tags?.route_ref || "",
-            takt_hvz: 10,
+            takt_hvz: type === "U-Bahn" || type === "S-Bahn" ? 10 : 20,
             source: "overpass",
           });
         }
@@ -162,6 +172,7 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
     const fetchNah = fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
       body: "data=" + encodeURIComponent(nahQuery),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
     })
       .then((r) => r.json())
       .then((data) => {
@@ -170,7 +181,7 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
           const elLat = el.lat ?? el.center?.lat;
           const elLng = el.lon ?? el.center?.lon;
           if (!elLat || !elLng) continue;
-          pois.push({ id: el.id.toString(), name: el.tags?.name || el.tags?.brand || "Nahversorgung", lat: elLat, lng: elLng, type: detectNahType(el.tags) });
+          pois.push({ id: "am_" + el.id.toString(), name: el.tags?.name || el.tags?.brand || "Nahversorgung", lat: elLat, lng: elLng, type: detectNahType(el.tags) });
         }
         setNahversorgung(pois);
       })
@@ -179,7 +190,7 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
     Promise.all([fetchTransit, fetchNah]).finally(() => setOverpassLoading(false));
   }, [center]);
 
-  // Map init
+  // Map init with Thunderforest + OSM fallback
   useEffect(() => {
     if (!center || !mapRef.current || typeof L === "undefined") return;
     if (mapInstance.current) {
@@ -187,10 +198,24 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
       return;
     }
     const map = L.map(mapRef.current).setView(center, 15);
-    L.tileLayer("https://tile.thunderforest.com/transport/{z}/{x}/{y}.png?apikey=6170aad10dfd42a38d4d8c709a536f38", {
-      attribution: "© Thunderforest, © OpenStreetMap contributors",
+
+    const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "© OpenStreetMap",
       maxZoom: 19,
-    }).addTo(map);
+    });
+    const transportLayer = L.tileLayer(
+      "https://{s}.tile.thunderforest.com/transport/{z}/{x}/{y}.png?apikey=a5dd6a2f1c934394b9ead65d3d30fe80",
+      { attribution: "© Thunderforest Transport", maxZoom: 19 }
+    );
+    transportLayer.on("tileerror", () => {
+      if (!(map as any)._osmFallback) {
+        osmLayer.addTo(map);
+        (map as any)._osmFallback = true;
+      }
+    });
+    transportLayer.addTo(map);
+    L.control.layers({ "ÖPNV-Karte": transportLayer, Standard: osmLayer }, {}, { position: "topright" }).addTo(map);
+
     mapInstance.current = map;
     map.on("click", (e: any) => {
       if (!(window as any).__addStopMode) return;
@@ -211,22 +236,29 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
     markersRef.current.forEach((m) => map.removeLayer(m));
     markersRef.current = [];
 
+    // Site marker
     const sm = L.marker(center).addTo(map);
     sm.bindPopup(`<b>${site?.name || "Standort"}</b><br/>${site?.address || ""}`);
     markersRef.current.push(sm);
 
-    markersRef.current.push(L.circle(center, { radius: 300, color: "#3b82f6", fillOpacity: 0.04, weight: 1 }).addTo(map));
-    markersRef.current.push(L.circle(center, { radius: 600, color: "#22c55e", fillOpacity: 0.03, weight: 1 }).addTo(map));
+    // 3 radii circles (StPlS)
+    markersRef.current.push(L.circle(center, { radius: 300, color: "#3b82f6", fillOpacity: 0.04, weight: 1.5, dashArray: "6 3" }).addTo(map));
+    markersRef.current.push(L.circle(center, { radius: 400, color: "#d97706", fillOpacity: 0.03, weight: 1.5, dashArray: "6 3" }).addTo(map));
+    markersRef.current.push(L.circle(center, { radius: 600, color: "#7c3aed", fillOpacity: 0.03, weight: 1.5 }).addTo(map));
 
+    // Auto stops (Overpass)
     autoStops.forEach((s) => {
       const dist = Math.round(haversineDistance(center[0], center[1], s.lat, s.lng));
       const color = STOP_COLORS[s.type] || "#6b7280";
-      const size = s.type === "U-Bahn" || s.type === "S-Bahn" ? 10 : s.type === "Tram" ? 8 : 6;
-      const m = L.circleMarker([s.lat, s.lng], { radius: size, fillColor: color, fillOpacity: 0.6, color: "#6b7280", weight: 1 }).addTo(map);
-      m.bindPopup(`<b>${s.name}</b><br/>${s.type} · Linien: ${s.lines || "–"}<br/>Entfernung: ${dist} m<br/>Takt HVZ: ${s.takt_hvz} min`);
+      const radius = STOP_RADII[s.type] || 6;
+      const m = L.circleMarker([s.lat, s.lng], {
+        radius, fillColor: color, fillOpacity: 0.85, color, weight: 2,
+      }).addTo(map);
+      m.bindPopup(`<b>${s.name}</b><br/>${s.type}${s.lines ? " · " + s.lines : ""}<br/>Takt HVZ: ${s.takt_hvz} min<br/>Entfernung: ${dist} m`);
       markersRef.current.push(m);
     });
 
+    // Manual stops
     transitStops.forEach((s) => {
       const dist = Math.round(haversineDistance(center[0], center[1], s.lat, s.lng));
       const color = STOP_COLORS[s.type] || "#6b7280";
@@ -235,10 +267,16 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
       markersRef.current.push(m);
     });
 
+    // Nahversorgung as small green squares
     nahversorgung.forEach((p) => {
       const dist = Math.round(haversineDistance(center[0], center[1], p.lat, p.lng));
-      const icon = NAH_ICONS[p.type] || "📍";
-      const m = L.marker([p.lat, p.lng], { icon: L.divIcon({ html: `<span style="font-size:18px">${icon}</span>`, className: "", iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(map);
+      const icon = L.divIcon({
+        html: `<div title="${p.name}" style="background:#22c55e;width:8px;height:8px;border:1.5px solid white;border-radius:2px;cursor:pointer"></div>`,
+        className: "",
+        iconSize: [8, 8],
+        iconAnchor: [4, 4],
+      });
+      const m = L.marker([p.lat, p.lng], { icon }).addTo(map);
       m.bindPopup(`<b>${p.name}</b><br/>${p.type} · ${dist} m`);
       markersRef.current.push(m);
     });
@@ -270,9 +308,12 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
     <div className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
         <Badge variant={oepnvStatus ? "default" : "destructive"} className="text-xs">
-          {oepnvStatus ? "✅ ÖPNV-Nachweis erfüllt (StPlS §2 Abs. 3)" : "❌ ÖPNV-Nachweis ausstehend"}
+          {oepnvStatus ? "✅ ÖPNV-Nachweis erfüllt (StPlS §4)" : "❌ ÖPNV-Nachweis ausstehend"}
         </Badge>
-        {overpassLoading && <span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> ÖPNV-Daten werden geladen…</span>}
+        {overpassLoading && <span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Haltestellen werden geladen…</span>}
+        {!overpassLoading && autoStops.length > 0 && (
+          <span className="text-[11px] text-muted-foreground">{autoStops.length} Haltestellen (OSM) · {nahversorgung.length} Einrichtungen geladen</span>
+        )}
         <div className="flex-1" />
         <Button variant={addStopMode ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setAddStopMode(!addStopMode)}>
           <Plus className="h-3 w-3 mr-1" /> {addStopMode ? "Klick auf Karte…" : "Haltestelle manuell"}
@@ -282,13 +323,14 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
         </Button>
       </div>
 
+      {/* Legend */}
       <div className="flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground border border-border rounded-md bg-card px-3 py-1.5">
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full mr-1" style={{ background: "#0057A8" }} />U-Bahn</span>
-        <span><span className="inline-block w-2.5 h-2.5 rounded-full mr-1" style={{ background: "#009252" }} />S-Bahn</span>
-        <span><span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: "#E2001A" }} />Tram</span>
-        <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ background: "#F5A400" }} />Bus</span>
-        <span>🛒 Nahversorgung</span>
-        <span className="text-muted-foreground/60">| Grau = automatisch · Farbig = manuell</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full mr-1" style={{ background: "#3b82f6" }} />Bus (300m)</span>
+        <span><span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: "#d97706" }} />Tram (400m)</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full mr-1" style={{ background: "#7c3aed" }} />U-Bahn (600m)</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full mr-1" style={{ background: "#059669" }} />S-Bahn (600m)</span>
+        <span><span className="inline-block w-2 h-2 rounded mr-1" style={{ background: "#22c55e" }} />Nahversorgung</span>
+        <span className="text-muted-foreground/60">| Farbig = OSM · Manuell = mit Rand</span>
       </div>
 
       {loading ? (
@@ -327,7 +369,11 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
       )}
 
       <p className="text-[11px] text-muted-foreground">
-        {autoStops.length} Haltestellen automatisch geladen · {transitStops.length} manuell · {nahversorgung.length} Nahversorger · Radien: 300m (blau) / 600m (grün)
+        {autoStops.length} Haltestellen automatisch geladen · {transitStops.length} manuell · {nahversorgung.length} Nahversorger · Radien: 300m (blau) / 400m (orange) / 600m (lila)
+      </p>
+
+      <p className="text-[11px] text-muted-foreground/70 italic">
+        Haltestellen automatisch aus OpenStreetMap geladen. Entfernungen als Luftlinie nach StPlS München 2025 (§4). Bitte Angaben prüfen und fehlende Haltestellen manuell ergänzen.
       </p>
 
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>

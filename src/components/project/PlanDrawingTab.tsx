@@ -6,10 +6,8 @@ import { toast } from "sonner";
 import {
   MousePointer2, Square, Accessibility, Bike, Zap, Car,
   Package, Type, Minus, Trash2, Undo2, Redo2, Grid3X3, Download, Save,
-  Ruler, AlertTriangle,
+  Ruler, AlertTriangle, FileText,
 } from "lucide-react";
-
-declare const jspdf: any;
 
 /* ── Types ── */
 interface DrawElement {
@@ -30,27 +28,31 @@ interface PlanDrawingTabProps {
   projectName?: string;
 }
 
-/* ── Constants ── */
-const PX_PER_METER = 10;
-const SNAP = 5; // 0.5m snap
+/* ── Constants (module-level) ── */
+const SCALE_1_1000 = 5; // 5px = 1 Meter bei Maßstab 1:1.000
+const SNAP = SCALE_1_1000; // snap to 1m grid (= 5px)
 const snap = (v: number) => Math.round(v / SNAP) * SNAP;
 
 const TOOLS = [
-  { id: "select", label: "Auswählen", sub: "", icon: MousePointer2, color: "#000", w: 0, h: 0, lbl: "" },
-  { id: "parking_car", label: "PKW", sub: "2,3×5,0m", icon: Square, color: "#1f2937", w: 23, h: 50, lbl: "P" },
-  { id: "parking_disabled", label: "Behindert", sub: "3,5×5,0m", icon: Accessibility, color: "#3b82f6", w: 35, h: 50, lbl: "♿" },
-  { id: "parking_bike", label: "Fahrrad", sub: "2,0×0,6m", icon: Bike, color: "#eab308", w: 20, h: 6, lbl: "F" },
-  { id: "ev_charger", label: "E-Ladesäule", sub: "1,0×1,0m", icon: Zap, color: "#22c55e", w: 10, h: 10, lbl: "⚡" },
-  { id: "sharing_area", label: "Sharing", sub: "frei", icon: Package, color: "#22c55e", w: 60, h: 40, lbl: "SHARING" },
-  { id: "carsharing", label: "Carsharing", sub: "2,3×5,0m", icon: Car, color: "#06b6d4", w: 23, h: 50, lbl: "CS" },
-  { id: "cargo_bike", label: "Lastenrad", sub: "2,5×1,2m", icon: Package, color: "#f97316", w: 25, h: 12, lbl: "LR" },
-  { id: "dimension", label: "Maßkette", sub: "", icon: Ruler, color: "#374151", w: 0, h: 0, lbl: "" },
-  { id: "text", label: "Text", sub: "", icon: Type, color: "#374151", w: 60, h: 20, lbl: "Text" },
-  { id: "fahrgasse", label: "Fahrgasse", sub: "6,5m", icon: Minus, color: "#9ca3af", w: 100, h: 65, lbl: "Fahrgasse 6,5m" },
+  { id: "select",        label: "Auswählen",               sub: "",              icon: MousePointer2, color: "",        w: 0,                   h: 0,                   lbl: "" },
+  { id: "parking_car",   label: "PKW-StP (2,30×5,00m)",    sub: "2,30×5,00m",    icon: Square,        color: "#9ca3af", w: 2.3 * SCALE_1_1000,  h: 5.0 * SCALE_1_1000,  lbl: "P" },
+  { id: "parking_wide",  label: "PKW-StP (2,50×5,00m)",    sub: "2,50×5,00m",    icon: Square,        color: "#9ca3af", w: 2.5 * SCALE_1_1000,  h: 5.0 * SCALE_1_1000,  lbl: "P" },
+  { id: "parking_disabled", label: "Behinderten (3,50×5,00m)", sub: "3,50×5,00m", icon: Accessibility, color: "#3b82f6", w: 3.5 * SCALE_1_1000, h: 5.0 * SCALE_1_1000,  lbl: "♿" },
+  { id: "aisle",          label: "Fahrgasse (6,50m)",       sub: "6,50m breit",   icon: Minus,         color: "#f9fafb", w: 6.5 * SCALE_1_1000,  h: 20 * SCALE_1_1000,   lbl: "" },
+  { id: "parking_bike",  label: "Fahrrad-StP (0,6×1,8m)",  sub: "0,60×1,80m",    icon: Bike,          color: "#eab308", w: 0.6 * SCALE_1_1000,  h: 1.8 * SCALE_1_1000,  lbl: "🚲" },
+  { id: "bike_row",      label: "Fahrrad-Reihe (5×)",      sub: "3,00×1,80m",    icon: Bike,          color: "#eab308", w: 3.0 * SCALE_1_1000,  h: 1.8 * SCALE_1_1000,  lbl: "🚲×5" },
+  { id: "ev_charger",    label: "E-Ladesäule (2,30×5,00m)",sub: "2,30×5,00m",    icon: Zap,           color: "#22c55e", w: 2.3 * SCALE_1_1000,  h: 5.0 * SCALE_1_1000,  lbl: "⚡" },
+  { id: "sharing_area",  label: "Sharing-Fläche",          sub: "frei",          icon: Package,       color: "#22c55e", w: 10 * SCALE_1_1000,   h: 5.0 * SCALE_1_1000,  lbl: "SHARING" },
+  { id: "carsharing",    label: "Carsharing-StP (2,50×5m)",sub: "2,50×5,00m",    icon: Car,           color: "#06b6d4", w: 2.5 * SCALE_1_1000,  h: 5.0 * SCALE_1_1000,  lbl: "CS" },
+  { id: "cargo_bike",    label: "Lastenrad-Station",       sub: "4,00×2,00m",    icon: Package,       color: "#f97316", w: 4.0 * SCALE_1_1000,  h: 2.0 * SCALE_1_1000,  lbl: "LR" },
+  { id: "building",      label: "Gebäude / Baukörper",     sub: "frei",          icon: Square,        color: "#6b7280", w: 20 * SCALE_1_1000,   h: 15 * SCALE_1_1000,   lbl: "" },
+  { id: "north_arrow",   label: "Nordpfeil",               sub: "",              icon: Type,          color: "#374151", w: 3.0 * SCALE_1_1000,  h: 3.0 * SCALE_1_1000,  lbl: "N↑" },
+  { id: "text",          label: "Beschriftung",            sub: "",              icon: Type,          color: "#374151", w: 8.0 * SCALE_1_1000,  h: 2.0 * SCALE_1_1000,  lbl: "Text" },
+  { id: "dimension",     label: "Maßlinie",               sub: "",              icon: Ruler,         color: "#374151", w: 0,                   h: 0,                   lbl: "" },
 ];
 
 const CANVAS_W = 1400;
-const CANVAS_H = 900;
+const CANVAS_H = 990;
 
 export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) {
   const queryClient = useQueryClient();
@@ -96,6 +98,8 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
     setElements(history[i]);
   };
 
+  const S = SCALE_1_1000; // shorthand for drawing
+
   /* ── Drawing ── */
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -108,17 +112,18 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
     ctx.save();
     ctx.scale(scale, scale);
 
+    const sw = w / scale;
+    const sh = h / scale;
+
     // Background
     ctx.fillStyle = "#f8f9fa";
-    ctx.fillRect(0, 0, w / scale, h / scale);
+    ctx.fillRect(0, 0, sw, sh);
 
     // Grid
     if (showGrid) {
-      const sw = w / scale;
-      const sh = h / scale;
-      for (let x = 0; x <= sw; x += 10) {
-        const isMajor = x % 100 === 0;
-        const isMid = x % 50 === 0;
+      for (let x = 0; x <= sw; x += S) {
+        const isMajor = x % (10 * S) === 0; // every 10m
+        const isMid = x % (5 * S) === 0;    // every 5m
         ctx.strokeStyle = isMajor ? "#d1d5db" : isMid ? "#e5e7eb" : "#eeeff1";
         ctx.lineWidth = isMajor ? 1 : 0.5;
         ctx.beginPath();
@@ -126,9 +131,9 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
         ctx.lineTo(x, sh);
         ctx.stroke();
       }
-      for (let y = 0; y <= sh; y += 10) {
-        const isMajor = y % 100 === 0;
-        const isMid = y % 50 === 0;
+      for (let y = 0; y <= sh; y += S) {
+        const isMajor = y % (10 * S) === 0;
+        const isMid = y % (5 * S) === 0;
         ctx.strokeStyle = isMajor ? "#d1d5db" : isMid ? "#e5e7eb" : "#eeeff1";
         ctx.lineWidth = isMajor ? 1 : 0.5;
         ctx.beginPath();
@@ -136,16 +141,16 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
         ctx.lineTo(sw, y);
         ctx.stroke();
       }
-      // Grid labels
+      // Grid labels every 10m
       ctx.fillStyle = "#9ca3af";
-      ctx.font = "9px Arial";
+      ctx.font = `${1.5 * S}px Arial`;
       ctx.textAlign = "left";
-      for (let x = 100; x < sw; x += 100) {
-        ctx.fillText(`${x / PX_PER_METER}m`, x + 2, 12);
+      for (let x = 10 * S; x < sw; x += 10 * S) {
+        ctx.fillText(`${x / S}m`, x + 2, 2 * S);
       }
       ctx.textAlign = "right";
-      for (let y = 100; y < sh; y += 100) {
-        ctx.fillText(`${y / PX_PER_METER}m`, sw - 4, y - 2);
+      for (let y = 10 * S; y < sh; y += 10 * S) {
+        ctx.fillText(`${y / S}m`, sw - S, y - 1);
       }
     }
 
@@ -155,7 +160,6 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
       ctx.setLineDash([]);
 
       if (el.type === "dimension") {
-        // Dimension line with arrows
         const ex = el.endX ?? el.x + el.width;
         const ey = el.endY ?? el.y;
         ctx.strokeStyle = isSel ? "#2563eb" : "#374151";
@@ -164,7 +168,6 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
         ctx.moveTo(el.x, el.y);
         ctx.lineTo(ex, ey);
         ctx.stroke();
-
         // Arrows
         const angle = Math.atan2(ey - el.y, ex - el.x);
         const aLen = 6;
@@ -176,17 +179,23 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
           ctx.lineTo(px + dir * aLen * Math.cos(angle + 0.4), py + dir * aLen * Math.sin(angle + 0.4));
           ctx.stroke();
         }
-
+        // End ticks
+        const perpAngle = angle + Math.PI / 2;
+        const tickLen = 4;
+        for (const [px, py] of [[el.x, el.y], [ex, ey]]) {
+          ctx.beginPath();
+          ctx.moveTo(px - tickLen * Math.cos(perpAngle), py - tickLen * Math.sin(perpAngle));
+          ctx.lineTo(px + tickLen * Math.cos(perpAngle), py + tickLen * Math.sin(perpAngle));
+          ctx.stroke();
+        }
         // Distance label
         const distPx = Math.sqrt((ex - el.x) ** 2 + (ey - el.y) ** 2);
-        const distM = (distPx / PX_PER_METER).toFixed(2).replace(".", ",");
+        const distM = (distPx / S).toFixed(2).replace(".", ",");
         ctx.fillStyle = "#1f2937";
-        ctx.font = "bold 10px Arial";
+        ctx.font = `bold ${1.8 * S}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "bottom";
-        const mx = (el.x + ex) / 2;
-        const my = (el.y + ey) / 2;
-        ctx.fillText(`${distM} m`, mx, my - 3);
+        ctx.fillText(`${distM} m`, (el.x + ex) / 2, (el.y + ey) / 2 - 3);
         return;
       }
 
@@ -194,8 +203,11 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
         ctx.setLineDash([6, 3]);
         ctx.fillStyle = "rgba(34,197,94,0.15)";
         ctx.fillRect(el.x, el.y, el.width, el.height);
-      } else if (el.type === "fahrgasse") {
+      } else if (el.type === "aisle") {
         ctx.fillStyle = "rgba(156,163,175,0.08)";
+        ctx.fillRect(el.x, el.y, el.width, el.height);
+      } else if (el.type === "building") {
+        ctx.fillStyle = "rgba(107,114,128,0.12)";
         ctx.fillRect(el.x, el.y, el.width, el.height);
       }
 
@@ -209,7 +221,7 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
       if (el.type === "parking_disabled") {
         ctx.strokeStyle = "#3b82f640";
         ctx.lineWidth = 0.5;
-        for (let d = 0; d < el.width + el.height; d += 5) {
+        for (let d = 0; d < el.width + el.height; d += 4) {
           ctx.beginPath();
           ctx.moveTo(el.x + Math.min(d, el.width), el.y + Math.max(0, d - el.width));
           ctx.lineTo(el.x + Math.max(0, d - el.height), el.y + Math.min(d, el.height));
@@ -220,79 +232,106 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
       // Label
       if (el.label) {
         ctx.fillStyle = "#1f2937";
-        const fontSize = Math.min(10, el.height * 0.6, el.width * 0.3);
-        ctx.font = `${Math.max(6, fontSize)}px Arial`;
+        const fontSize = Math.min(2 * S, el.height * 0.6, el.width * 0.3);
+        ctx.font = `${Math.max(1.2 * S, fontSize)}px Arial`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(el.label, el.x + el.width / 2, el.y + el.height / 2, el.width - 2);
       }
     });
 
-    // Scale bar (bottom left)
-    const sbY = h / scale - 20;
-    ctx.strokeStyle = "#374151";
-    ctx.fillStyle = "#374151";
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(20, sbY);
-    ctx.lineTo(120, sbY);
-    ctx.stroke();
-    // Ticks
-    for (const tx of [20, 70, 120]) {
-      ctx.beginPath();
-      ctx.moveTo(tx, sbY - 4);
-      ctx.lineTo(tx, sbY + 4);
-      ctx.stroke();
+    // Dimension lines for selected element
+    const selEl = elements.find((e) => e.id === selectedId);
+    if (selEl && !["text", "dimension", "select", "north_arrow"].includes(selEl.type)) {
+      const rW = (selEl.width / S).toFixed(2);
+      const rH = (selEl.height / S).toFixed(2);
+      const off = 3 * S;
+      ctx.strokeStyle = "#2563eb";
+      ctx.lineWidth = 0.5;
+      ctx.setLineDash([2, 2]);
+      // Horizontal dimension (top)
+      ctx.beginPath(); ctx.moveTo(selEl.x, selEl.y - off); ctx.lineTo(selEl.x + selEl.width, selEl.y - off); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(selEl.x, selEl.y - off - S); ctx.lineTo(selEl.x, selEl.y - off + S); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(selEl.x + selEl.width, selEl.y - off - S); ctx.lineTo(selEl.x + selEl.width, selEl.y - off + S); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#2563eb";
+      ctx.font = `${1.8 * S}px Arial`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      ctx.fillText(`${rW} m`, selEl.x + selEl.width / 2, selEl.y - off);
+      // Vertical dimension (right)
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath(); ctx.moveTo(selEl.x + selEl.width + off, selEl.y); ctx.lineTo(selEl.x + selEl.width + off, selEl.y + selEl.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(selEl.x + selEl.width + off - S, selEl.y); ctx.lineTo(selEl.x + selEl.width + off + S, selEl.y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(selEl.x + selEl.width + off - S, selEl.y + selEl.height); ctx.lineTo(selEl.x + selEl.width + off + S, selEl.y + selEl.height); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(`${rH} m`, selEl.x + selEl.width + off + S, selEl.y + selEl.height / 2);
     }
-    ctx.font = "9px Arial";
+
+    // Scale bar (bottom left)
+    const seg = 10 * S;
+    const sbX = 2 * S;
+    const sbY = sh - 8 * S;
+    ctx.fillStyle = "#374151";
+    ctx.fillRect(sbX, sbY, seg, 1.5 * S);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(sbX + seg, sbY, seg, 1.5 * S);
+    ctx.fillStyle = "#374151";
+    ctx.fillRect(sbX + 2 * seg, sbY, seg, 1.5 * S);
+    ctx.strokeStyle = "#374151";
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(sbX, sbY, 3 * seg, 1.5 * S);
+    ctx.font = `${1.5 * S}px Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    ctx.fillText("0", 20, sbY + 6);
-    ctx.fillText("5m", 70, sbY + 6);
-    ctx.fillText("10m", 120, sbY + 6);
+    ["0", "10m", "20m", "30m"].forEach((lbl, i) => ctx.fillText(lbl, sbX + i * seg, sbY + 2 * S));
 
     // North arrow (top right)
-    const nX = w / scale - 30;
+    const nX = sw - 4 * S;
     ctx.fillStyle = "#374151";
-    ctx.font = "bold 11px Arial";
+    ctx.font = `bold ${2 * S}px Arial`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
-    ctx.fillText("N", nX, 22);
+    ctx.fillText("N", nX, 3 * S);
     ctx.beginPath();
-    ctx.moveTo(nX, 24);
-    ctx.lineTo(nX - 5, 34);
-    ctx.lineTo(nX + 5, 34);
+    ctx.moveTo(nX, 3.5 * S);
+    ctx.lineTo(nX - 1.5 * S, 6 * S);
+    ctx.lineTo(nX + 1.5 * S, 6 * S);
     ctx.closePath();
     ctx.fill();
 
-    // Title block (bottom right)
-    const tbW = 320;
-    const tbH = 100;
-    const tbX = w / scale - tbW - 10;
-    const tbY2 = h / scale - tbH - 10;
+    // Schriftfeld (title block) bottom right
+    const fw = 80 * S;
+    const fh = 20 * S;
+    const fx = sw - fw - 2 * S;
+    const fy = sh - fh - 2 * S;
     ctx.fillStyle = "#ffffff";
-    ctx.fillRect(tbX, tbY2, tbW, tbH);
+    ctx.fillRect(fx, fy, fw, fh);
     ctx.strokeStyle = "#374151";
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(tbX, tbY2, tbW, tbH);
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([]);
+    ctx.strokeRect(fx, fy, fw, fh);
+    ctx.beginPath(); ctx.moveTo(fx, fy + 8 * S); ctx.lineTo(fx + fw, fy + 8 * S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(fx, fy + 14 * S); ctx.lineTo(fx + fw, fy + 14 * S); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(fx + 35 * S, fy); ctx.lineTo(fx + 35 * S, fy + fh); ctx.stroke();
 
-    ctx.fillStyle = "#1f2937";
-    ctx.font = "bold 10px Arial";
+    ctx.fillStyle = "#374151";
+    ctx.font = `${1.8 * S}px Arial`;
     ctx.textAlign = "left";
     ctx.textBaseline = "top";
-    ctx.fillText("STELLPLATZPLAN – ANLAGE 3", tbX + 8, tbY2 + 8);
-    ctx.font = "9px Arial";
-    ctx.fillText("zum Mobilitätskonzept", tbX + 8, tbY2 + 22);
-    const today = new Date().toLocaleDateString("de-DE");
-    ctx.fillText(`Maßstab 1:1.000 · Datum: ${today}`, tbX + 8, tbY2 + 38);
-    ctx.fillText("Bearbeiter: neotopia", tbX + 8, tbY2 + 52);
-    ctx.fillText("LHM Stellplatzsatzung 2025 · GaStellV Bayern", tbX + 8, tbY2 + 66);
+    ctx.fillText("Maßstab: 1:1.000", fx + 1 * S, fy + 1 * S);
+    ctx.fillText("Datum: " + new Date().toLocaleDateString("de-DE"), fx + 1 * S, fy + 9 * S);
+    ctx.fillText("neotopia Mobility Studio", fx + 1 * S, fy + 15 * S);
+    ctx.fillText("Anlage 3 – PKW/Rad/Sharing-Stellplätze", fx + 36 * S, fy + 1 * S);
+    ctx.fillText("GaStellV Bayern §4 konform", fx + 36 * S, fy + 9 * S);
     if (projectName) {
-      ctx.fillText(`Projekt: ${projectName}`, tbX + 8, tbY2 + 80);
+      ctx.fillText(`Projekt: ${projectName}`, fx + 36 * S, fy + 15 * S);
     }
 
     ctx.restore();
-  }, [elements, selectedId, showGrid, scale, projectName]);
+  }, [elements, selectedId, showGrid, scale, projectName, S]);
 
   /* ── Interactions ── */
   const getPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -306,7 +345,6 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x, y } = getPos(e);
 
-    // Dimension tool – two-click
     if (selectedTool === "dimension") {
       if (!dimStart) {
         setDimStart({ x: snap(x), y: snap(y) });
@@ -315,14 +353,9 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
       const newEl: DrawElement = {
         id: crypto.randomUUID(),
         type: "dimension",
-        x: dimStart.x,
-        y: dimStart.y,
-        width: 0,
-        height: 0,
-        label: "",
-        color: "#374151",
-        endX: snap(x),
-        endY: snap(y),
+        x: dimStart.x, y: dimStart.y,
+        width: 0, height: 0, label: "", color: "#374151",
+        endX: snap(x), endY: snap(y),
       };
       const next = [...elements, newEl];
       setElements(next);
@@ -353,13 +386,9 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
     const sy = snap(y - tool.h / 2);
     const newEl: DrawElement = {
       id: crypto.randomUUID(),
-      type: tool.id,
-      x: sx,
-      y: sy,
-      width: tool.w,
-      height: tool.h,
-      label: tool.lbl,
-      color: tool.color,
+      type: tool.id, x: sx, y: sy,
+      width: tool.w, height: tool.h,
+      label: tool.lbl, color: tool.color,
     };
     const next = [...elements, newEl];
     setElements(next);
@@ -414,7 +443,7 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
     const canvas = canvasRef.current;
     if (!canvas) return;
     const link = document.createElement("a");
-    link.download = "Stellplatzplan_Anlage3_1zu1000.png";
+    link.download = "Stellplatzplan_Anlage3_M1-1000.png";
     link.href = canvas.toDataURL("image/png");
     link.click();
   };
@@ -429,22 +458,14 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
     }
     const doc = new w.jspdf.jsPDF({ orientation: "landscape", unit: "mm", format: "a3" });
     const imgData = canvas.toDataURL("image/png", 1.0);
-    doc.addImage(imgData, "PNG", 10, 10, 400, 257);
-    doc.setFontSize(8);
-    doc.text(
-      "Maßstab 1:1.000 – Anlage 3 Mobilitätskonzept – erzeugt mit neotopia Mobility Concept Studio",
-      10,
-      280
-    );
-    doc.save("Stellplatzplan_Anlage3_1zu1000.pdf");
+    doc.addImage(imgData, "PNG", 0, 0, 420, 297);
+    doc.save("Stellplatzplan_Anlage3_M1-1000.pdf");
   };
 
   const saveToProject = useMutation({
     mutationFn: async () => {
       const canvas = canvasRef.current;
       if (!canvas) throw new Error("Canvas nicht verfügbar");
-      // HINWEIS: Storage-Bucket "project-attachments" muss in Supabase Dashboard erstellt werden
-      // Settings → Storage → New Bucket → "project-attachments" → Private (RLS)
       const blob = await new Promise<Blob>((res, rej) => {
         canvas.toBlob((b) => (b ? res(b) : rej(new Error("Blob-Fehler"))), "image/png");
       });
@@ -455,7 +476,7 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
       const { error } = await supabase.from("output_packages").insert({
         project_id: projectId,
         name: "Stellplatzplan",
-        file_name: "Stellplatzplan_Anlage3_1zu1000.png",
+        file_name: "Stellplatzplan_Anlage3_M1-1000.png",
         file_path: path,
         file_type: "image/png",
         file_size_bytes: blob.size,
@@ -498,7 +519,7 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
             title={tool.label}
           >
             <tool.icon className="h-3.5 w-3.5" />
-            <span className="hidden lg:inline leading-tight">{tool.label}</span>
+            <span className="hidden lg:inline leading-tight">{tool.label.split(" ")[0]}</span>
             {tool.sub && <span className="hidden lg:inline text-[9px] text-muted-foreground leading-tight">{tool.sub}</span>}
           </Button>
         ))}
@@ -520,8 +541,8 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
         <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={exportPng}>
           <Download className="h-3.5 w-3.5 mr-1" /> PNG
         </Button>
-        <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={exportPdf}>
-          PDF A3
+        <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={exportPdf} title="PDF A3 exportieren">
+          <FileText className="h-3.5 w-3.5 mr-1" /> PDF A3
         </Button>
         <Button size="sm" className="h-7 px-2 text-[11px]" onClick={() => saveToProject.mutate()} disabled={saveToProject.isPending}>
           <Save className="h-3.5 w-3.5 mr-1" /> {saveToProject.isPending ? "Speichert…" : "Speichern"}
@@ -552,7 +573,7 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        Maßstab 1:1.000 · Raster 5m/10m · Snap 0,5m · GaStellV Bayern · Scrollrad zum Zoomen · Elemente per Drag verschieben
+        Maßstab 1:1.000 · GaStellV Bayern §4: PKW mind. 2,30×5,00m, Behinderten 3,50×5,00m, Fahrgasse mind. 6,00m · Für Bauantrag Prüfung durch Architekten empfohlen
       </p>
     </div>
   );
