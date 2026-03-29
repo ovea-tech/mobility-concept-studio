@@ -21,6 +21,16 @@ import { Lock, Info, AlertTriangle, CheckCircle, Calculator, Mail, Save, RotateC
 const thClass = "text-[11px] uppercase tracking-wider text-muted-foreground/70 font-medium";
 const tdClass = "text-[13px]";
 
+const NON_RESIDENTIAL_RATES: Record<string, {label: string; ratePerQm: number; unitLabel: string}> = {
+  "Büro":          { label: "Büro / Verwaltung",      ratePerQm: 40,  unitLabel: "m² BGF je StP" },
+  "Einzelhandel":  { label: "Einzelhandel",            ratePerQm: 30,  unitLabel: "m² VKF je StP" },
+  "Gewerbe":       { label: "Gewerbe / Industrie",     ratePerQm: 60,  unitLabel: "m² BGF je StP" },
+  "Gastronomie":   { label: "Gastronomie",             ratePerQm: 25,  unitLabel: "m² BGF je StP" },
+  "Hotel":         { label: "Hotel / Beherbergung",    ratePerQm: 50,  unitLabel: "m² BGF je StP" },
+  "Kita":          { label: "Kita / Schule",           ratePerQm: 75,  unitLabel: "m² BGF je StP" },
+  "Arztpraxis":    { label: "Arztpraxis / Gesundheit", ratePerQm: 30,  unitLabel: "m² BGF je StP" },
+};
+
 interface CalculatorTabProps {
   projectId: string;
   project: any;

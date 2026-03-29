@@ -2242,20 +2242,36 @@ function CreateUseTypeDialog({ open, onOpenChange, projectId }: { open: boolean;
               <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Wählen…" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="Wohnen">Wohnen</SelectItem>
-                <SelectItem value="Büro">Büro</SelectItem>
-                <SelectItem value="Gewerbe">Gewerbe</SelectItem>
+                <SelectItem value="Büro">Büro / Verwaltung</SelectItem>
                 <SelectItem value="Einzelhandel">Einzelhandel</SelectItem>
+                <SelectItem value="Gewerbe">Gewerbe / Industrie</SelectItem>
+                <SelectItem value="Gastronomie">Gastronomie</SelectItem>
+                <SelectItem value="Hotel">Hotel / Beherbergung</SelectItem>
+                <SelectItem value="Kita">Kita / Schule</SelectItem>
+                <SelectItem value="Arztpraxis">Arztpraxis / Gesundheit</SelectItem>
                 <SelectItem value="Sonstiges">Sonstiges</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Anzahl Einheiten</Label>
-              <Input value={unitCount} onChange={(e) => setUnitCount(e.target.value)} type="number" placeholder="z. B. 120" className="h-9 text-[13px]" />
+          {/* Hint for non-residential */}
+          {category && category !== "Wohnen" && category !== "Sonstiges" && category !== "" && (
+            <div className="rounded-md bg-muted/50 px-3 py-2">
+              <p className="text-[11px] text-muted-foreground">
+                Richtwert: 1 StP je {
+                  ({ Büro: 40, Einzelhandel: 30, Gewerbe: 60, Gastronomie: 25, Hotel: 50, Kita: 75, Arztpraxis: 30 } as any)[category] ?? "–"
+                } m² nach StPlS München
+              </p>
             </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            {(!category || category === "Wohnen" || category === "Sonstiges") && (
+              <div className="space-y-1.5">
+                <Label className="text-[13px]">Anzahl Einheiten</Label>
+                <Input value={unitCount} onChange={(e) => setUnitCount(e.target.value)} type="number" placeholder="z. B. 120" className="h-9 text-[13px]" />
+              </div>
+            )}
             <div className="space-y-1.5">
-              <Label className="text-[13px]">BGF (m²)</Label>
+              <Label className="text-[13px]">BGF (m²) {category && category !== "Wohnen" && category !== "Sonstiges" ? "*" : ""}</Label>
               <Input value={gfa} onChange={(e) => setGfa(e.target.value)} type="number" placeholder="z. B. 8500" className="h-9 text-[13px]" />
             </div>
           </div>
