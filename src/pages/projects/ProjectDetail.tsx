@@ -1436,26 +1436,131 @@ function MonitoringTab({ projectId }: { projectId: string }) {
           </TableRow></TableHeader>
           <TableBody>
             {items.map((m) => (
-              <TableRow key={m.id}>
-                <TableCell className={`font-medium ${tdClass}`}>{m.title}</TableCell>
-                <TableCell><StatusBadge status={m.status} /></TableCell>
-                <TableCell className={`${tdMuted} tabular-nums`}>{m.due_date ? format(new Date(m.due_date), "dd.MM.yyyy") : "–"}</TableCell>
-                <TableCell className={tdMuted}>{m.completed_at ? format(new Date(m.completed_at), "dd.MM.yyyy") : "–"}</TableCell>
-                <TableCell className="text-right">
-                  <div className="flex items-center justify-end gap-1">
-                    <ActionIcon icon={Pencil} onClick={() => setEditItem(m)} title="Bearbeiten" />
-                    <ActionIcon icon={Trash2} onClick={() => setDeleteId(m.id)} title="Löschen" variant="destructive" />
-                  </div>
-                </TableCell>
-              </TableRow>
+              <React.Fragment key={m.id}>
+                <TableRow>
+                  <TableCell className={`font-medium ${tdClass}`}>{m.title}</TableCell>
+                  <TableCell><StatusBadge status={m.status} /></TableCell>
+                  <TableCell className={`${tdMuted} tabular-nums`}>{m.due_date ? format(new Date(m.due_date), "dd.MM.yyyy") : "–"}</TableCell>
+                  <TableCell className={tdMuted}>{m.completed_at ? format(new Date(m.completed_at), "dd.MM.yyyy") : "–"}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <ActionIcon icon={Pencil} onClick={() => setEditItem(m)} title="Bearbeiten" />
+                      <ActionIcon icon={Trash2} onClick={() => setDeleteId(m.id)} title="Löschen" variant="destructive" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell colSpan={5} className="pt-0 pb-2">
+                    <ReminderSection monitoringItem={m} projectId={projectId} />
+                  </TableCell>
+                </TableRow>
+              </React.Fragment>
             ))}
           </TableBody>
         </Table>
       )}
+
+      <p className="text-[11px] text-muted-foreground mt-4">
+        E-Mail-Benachrichtigungen werden X Tage vor Fälligkeit automatisch versendet.
+        Die Konfiguration des E-Mail-Versands erfolgt über Supabase Edge Functions.
+      </p>
+
       <CreateMonitoringDialog open={createOpen} onOpenChange={setCreateOpen} projectId={projectId} />
       {editItem && <EditMonitoringDialog open={!!editItem} onOpenChange={(v) => !v && setEditItem(null)} item={editItem} projectId={projectId} />}
       <DeleteConfirm open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)} title="Monitoring-Eintrag löschen?" description="Dieser Eintrag wird unwiderruflich gelöscht." onConfirm={() => deleteId && deleteMutation.mutate(deleteId)} isPending={deleteMutation.isPending} />
     </>
+  );
+}
+
+/* ── Reminder Section (Block 5) ── */
+function ReminderSection({ monitoringItem, projectId }: { monitoringItem: any; projectId: string }) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+
+  React.useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user?.email) setEmail(data.user.email);
+    });
+  }, []);
+
+  const { data: reminders } = useQuery({
+    queryKey: ["reminders", monitoringItem.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("reminders").select("*")
+        .eq("project_id", projectId)
+        .eq("entity_id", monitoringItem.id)
+        .eq("entity_type", "monitoring_item")
+        .order("remind_at");
+      return data ?? [];
+    },
+  });
+
+  const createReminderMutation = useMutation({
+    mutationFn: async (daysBefore: number) => {
+      if (!monitoringItem.due_date) throw new Error("Kein Fälligkeitsdatum");
+      const { data: user } = await supabase.auth.getUser();
+      const dueDate = new Date(monitoringItem.due_date);
+      dueDate.setDate(dueDate.getDate() - daysBefore);
+      const { error } = await supabase.from("reminders").insert({
+        project_id: projectId,
+        entity_id: monitoringItem.id,
+        entity_type: "monitoring_item",
+        user_id: user.user?.id ?? "",
+        remind_at: dueDate.toISOString(),
+        title: `${monitoringItem.title} – ${daysBefore} Tage vorher`,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["reminders", monitoringItem.id] });
+      toast.success("Erinnerung gespeichert");
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <div>
+      {/* Show existing reminders */}
+      {reminders && reminders.length > 0 && (
+        <div className="flex items-center gap-1.5 flex-wrap mb-1">
+          {reminders.map(r => (
+            <Badge key={r.id} variant="secondary" className="text-[10px]">
+              ⏰ {format(new Date(r.remind_at), "dd.MM.yyyy")}
+            </Badge>
+          ))}
+        </div>
+      )}
+
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+            <Bell className="h-3 w-3" /> Erinnerung
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          {monitoringItem.due_date ? (
+            <div className="mt-2 space-y-2 pl-4 border-l-2 border-border">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[30, 14, 7, 3].map(days => (
+                  <Button key={days} variant="outline" size="sm" className="h-6 text-[11px] px-2"
+                    onClick={() => createReminderMutation.mutate(days)}
+                    disabled={createReminderMutation.isPending}>
+                    {days} Tage vorher
+                  </Button>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <Input value={email} onChange={e => setEmail(e.target.value)} placeholder="E-Mail" className="h-7 text-[11px] w-48" />
+                <span className="text-[10px] text-muted-foreground">(vorausgefüllt)</span>
+              </div>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground mt-1 pl-4">Kein Fälligkeitsdatum – Erinnerung nicht möglich.</p>
+          )}
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
   );
 }
 
