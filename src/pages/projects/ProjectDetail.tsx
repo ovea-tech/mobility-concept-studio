@@ -376,6 +376,8 @@ export default function ProjectDetail() {
                   compliance: "Nachweisführung",
                   concepts: "Konzepte",
                   scenarios: "Szenarien & Maßnahmen",
+                  sitemap: "Standortkarte & ÖPNV",
+                  drawing: "Stellplatzplan",
                 };
                 return (
                   <TabsTrigger key={tab} value={tab} className={tabClass}>
@@ -390,6 +392,12 @@ export default function ProjectDetail() {
         <div className="flex-1 overflow-auto">
           <TabsContent value="overview" className="p-6 mt-0">
             <OverviewTab projectId={project.id} />
+            <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
+          </TabsContent>
+          <TabsContent value="sitemap" className="p-6 mt-0">
+            <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Standortkarte" />}>
+              <SiteMapTab site={(sitesData as any)?.[0]} projectId={project.id} />
+            </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="usetypes" className="p-6 mt-0">
@@ -432,6 +440,11 @@ export default function ProjectDetail() {
           <TabsContent value="documents" className="p-6 mt-0">
             <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Dokumente" />}>
               <DocumentsTab projectId={project.id} project={project} />
+            </ErrorBoundary>
+          </TabsContent>
+          <TabsContent value="drawing" className="p-6 mt-0">
+            <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Stellplatzplan" />}>
+              <PlanDrawingTab projectId={project.id} />
             </ErrorBoundary>
           </TabsContent>
         </div>
