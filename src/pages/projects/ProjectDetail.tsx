@@ -174,7 +174,7 @@ export default function ProjectDetail() {
   const { data: sitesData } = useQuery({
     queryKey: ["project-sites", projectId],
     queryFn: async () => {
-      const { data } = await supabase.from("project_sites").select("id").eq("project_id", projectId);
+      const { data } = await supabase.from("project_sites").select("*").eq("project_id", projectId);
       return data ?? [];
     },
     enabled: !!project,
