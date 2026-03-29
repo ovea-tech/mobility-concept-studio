@@ -395,7 +395,7 @@ export default function ProjectDetail() {
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="calculator" className="p-6 mt-0">
-            <ErrorBoundary fallback={<TabErrorFallback label="Kalkulator" />}>
+            <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Kalkulator" />}>
               <CalculatorTab projectId={project.id} project={project} onNavigate={(tab) => {
                 if (tab === "compliance") { setActiveStep(2); setActiveSubTab("compliance"); }
                 else if (tab === "scenarios") { setActiveStep(2); setActiveSubTab("scenarios"); }
@@ -404,31 +404,31 @@ export default function ProjectDetail() {
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="compliance" className="p-6 mt-0">
-            <ErrorBoundary fallback={<TabErrorFallback label="Nachweisführung" />}>
+            <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Nachweisführung" />}>
               <ComplianceTab projectId={project.id} project={project} />
             </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="concepts" className="p-6 mt-0">
-            <ErrorBoundary fallback={<TabErrorFallback label="Konzepte" />}>
+            <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Konzepte" />}>
               <ConceptsTab projectId={project.id} />
             </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="scenarios" className="p-6 mt-0">
-            <ErrorBoundary fallback={<TabErrorFallback label="Szenarien" />}>
+            <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Szenarien" />}>
               <ScenariosTab projectId={project.id} />
             </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="monitoring" className="p-6 mt-0">
-            <ErrorBoundary fallback={<TabErrorFallback label="Monitoring" />}>
+            <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Monitoring" />}>
               <MonitoringTab projectId={project.id} />
             </ErrorBoundary>
             <NextStepButton activeStep={activeStep} setActiveStep={setActiveStep} steps={workflowSteps} />
           </TabsContent>
           <TabsContent value="documents" className="p-6 mt-0">
-            <ErrorBoundary fallback={<TabErrorFallback label="Dokumente" />}>
+            <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Dokumente" />}>
               <DocumentsTab projectId={project.id} project={project} />
             </ErrorBoundary>
           </TabsContent>

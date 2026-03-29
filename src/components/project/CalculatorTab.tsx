@@ -156,8 +156,14 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
           },
         }));
 
-      // Delete existing for this project
-      await supabase.from("baseline_requirements").delete().eq("project_id", projectId);
+      // Delete existing for this project (only if rows exist)
+      const { data: existing } = await supabase
+        .from("baseline_requirements")
+        .select("id")
+        .eq("project_id", projectId);
+      if (existing && existing.length > 0) {
+        await supabase.from("baseline_requirements").delete().eq("project_id", projectId);
+      }
 
       if (brInserts.length > 0) {
         const { error } = await supabase.from("baseline_requirements").insert(brInserts as any);
