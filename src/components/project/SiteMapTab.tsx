@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import React, { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { MapPin, Plus, Save, Trash2, Train, Bus } from "lucide-react";
+import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 
 declare const L: any;
 
@@ -17,292 +17,339 @@ interface TransitStop {
   name: string;
   lat: number;
   lng: number;
-  type: string;
+  type: "U-Bahn" | "S-Bahn" | "Tram" | "Bus";
   lines: string;
   takt_hvz: number;
+  source: "overpass" | "manual";
+}
+
+interface NahversorgungPoi {
+  id: string;
+  name: string;
+  lat: number;
+  lng: number;
+  type: string;
 }
 
 interface SiteMapTabProps {
-  site: any;
+  site?: { id: string; address?: string | null; name: string; metadata?: any } | null;
   projectId: string;
 }
 
-const TRANSIT_TYPES = ["Bus", "Tram", "U-Bahn", "S-Bahn", "RegBahn"];
+const STOP_COLORS: Record<string, string> = {
+  "U-Bahn": "#0057A8",
+  "S-Bahn": "#009252",
+  "Tram": "#E2001A",
+  "Bus": "#F5A400",
+};
 
-function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+const NAH_ICONS: Record<string, string> = {
+  supermarket: "🛒",
+  convenience: "🛒",
+  pharmacy: "💊",
+  doctors: "🏥",
+  bakery: "🥖",
+};
+
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
-  const queryClient = useQueryClient();
-  const mapRef = useRef<any>(null);
-  const mapContainerRef = useRef<HTMLDivElement>(null);
-  const [center, setCenter] = useState<[number, number] | null>(null);
-  const [transitStops, setTransitStops] = useState<TransitStop[]>(() => {
-    const meta = (site?.metadata as any) ?? {};
-    return meta.transit_stops ?? [];
-  });
-  const [addMode, setAddMode] = useState(false);
-  const [pendingLatLng, setPendingLatLng] = useState<{ lat: number; lng: number } | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [stopName, setStopName] = useState("");
-  const [stopType, setStopType] = useState("Bus");
-  const [stopLines, setStopLines] = useState("");
-  const [stopTakt, setStopTakt] = useState("10");
+function detectType(tags: any): TransitStop["type"] {
+  if (!tags) return "Bus";
+  if (tags.railway === "station" && tags.station === "subway") return "U-Bahn";
+  if (tags.railway === "station" || tags.railway === "halt") return "S-Bahn";
+  if (tags.railway === "tram_stop") return "Tram";
+  return "Bus";
+}
 
-  // Geocode
+function detectNahType(tags: any): string {
+  if (tags?.shop === "supermarket") return "supermarket";
+  if (tags?.shop === "convenience") return "convenience";
+  if (tags?.amenity === "pharmacy") return "pharmacy";
+  if (tags?.amenity === "doctors") return "doctors";
+  if (tags?.shop === "bakery") return "bakery";
+  return "supermarket";
+}
+
+export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<any>(null);
+  const markersRef = useRef<any[]>([]);
+
+  const [center, setCenter] = useState<[number, number] | null>(null);
+  const [autoStops, setAutoStops] = useState<TransitStop[]>([]);
+  const [transitStops, setTransitStops] = useState<TransitStop[]>(() => {
+    const saved = site?.metadata?.transit_stops;
+    return Array.isArray(saved) ? saved : [];
+  });
+  const [nahversorgung, setNahversorgung] = useState<NahversorgungPoi[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [overpassLoading, setOverpassLoading] = useState(false);
+  const [addStopMode, setAddStopMode] = useState(false);
+  const [pendingClick, setPendingClick] = useState<{ lat: number; lng: number } | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [newStop, setNewStop] = useState({ name: "", type: "Bus" as TransitStop["type"], lines: "", takt_hvz: 10 });
+  const [saving, setSaving] = useState(false);
+
+  const allStops = [...autoStops, ...transitStops];
+
+  const oepnvStatus = center
+    ? allStops.some((s) => {
+        const dist = haversineDistance(center[0], center[1], s.lat, s.lng);
+        if ((s.type === "Bus" || s.type === "Tram") && dist <= 300) return true;
+        if ((s.type === "U-Bahn" || s.type === "S-Bahn") && dist <= 600 && s.takt_hvz <= 10) return true;
+        return false;
+      })
+    : false;
+
+  // Geocoding
   useEffect(() => {
     if (!site?.address) {
-      setCenter([48.137, 11.576]); // Munich fallback
+      setLoading(false);
       return;
     }
     fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(site.address)}&format=json&limit=1`)
-      .then(r => r.json())
-      .then(data => {
+      .then((r) => r.json())
+      .then((data) => {
         if (data?.[0]) setCenter([parseFloat(data[0].lat), parseFloat(data[0].lon)]);
-        else setCenter([48.137, 11.576]);
       })
-      .catch(() => setCenter([48.137, 11.576]));
+      .catch(() => toast.error("Geocoding fehlgeschlagen"))
+      .finally(() => setLoading(false));
   }, [site?.address]);
 
-  // Init map
+  // Overpass
   useEffect(() => {
-    if (!center || !mapContainerRef.current || typeof L === "undefined") return;
-    if (mapRef.current) {
-      mapRef.current.remove();
-      mapRef.current = null;
-    }
+    if (!center) return;
+    const [lat, lon] = center;
+    setOverpassLoading(true);
 
-    const map = L.map(mapContainerRef.current).setView(center, 15);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '© OpenStreetMap',
+    const transitQuery = `[out:json][timeout:30];(node["railway"="station"](around:700,${lat},${lon});node["railway"="halt"](around:700,${lat},${lon});node["railway"="tram_stop"](around:500,${lat},${lon});node["highway"="bus_stop"](around:400,${lat},${lon});node["public_transport"="platform"](around:700,${lat},${lon}););out body;`;
+    const nahQuery = `[out:json][timeout:30];(nwr["shop"="supermarket"](around:600,${lat},${lon});nwr["shop"="convenience"](around:500,${lat},${lon});nwr["amenity"="pharmacy"](around:500,${lat},${lon});nwr["amenity"="doctors"](around:500,${lat},${lon});nwr["shop"="bakery"](around:400,${lat},${lon}););out center;`;
+
+    const fetchTransit = fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: "data=" + encodeURIComponent(transitQuery),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const seen = new Set<string>();
+        const stops: TransitStop[] = [];
+        for (const el of data.elements || []) {
+          const key = `${el.lat?.toFixed(4)}_${el.lon?.toFixed(4)}`;
+          if (seen.has(key) || !el.lat || !el.lon) continue;
+          seen.add(key);
+          stops.push({
+            id: el.id.toString(),
+            name: el.tags?.name || el.tags?.["name:de"] || "Haltestelle",
+            lat: el.lat,
+            lng: el.lon,
+            type: detectType(el.tags),
+            lines: el.tags?.ref || el.tags?.route_ref || "",
+            takt_hvz: 10,
+            source: "overpass",
+          });
+        }
+        setAutoStops(stops);
+      })
+      .catch(() => toast.error("Overpass-API nicht erreichbar – bitte Haltestellen manuell erfassen"));
+
+    const fetchNah = fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: "data=" + encodeURIComponent(nahQuery),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        const pois: NahversorgungPoi[] = [];
+        for (const el of data.elements || []) {
+          const elLat = el.lat ?? el.center?.lat;
+          const elLng = el.lon ?? el.center?.lon;
+          if (!elLat || !elLng) continue;
+          pois.push({ id: el.id.toString(), name: el.tags?.name || el.tags?.brand || "Nahversorgung", lat: elLat, lng: elLng, type: detectNahType(el.tags) });
+        }
+        setNahversorgung(pois);
+      })
+      .catch(() => {});
+
+    Promise.all([fetchTransit, fetchNah]).finally(() => setOverpassLoading(false));
+  }, [center]);
+
+  // Map init
+  useEffect(() => {
+    if (!center || !mapRef.current || typeof L === "undefined") return;
+    if (mapInstance.current) {
+      mapInstance.current.setView(center, 15);
+      return;
+    }
+    const map = L.map(mapRef.current).setView(center, 15);
+    L.tileLayer("https://tile.thunderforest.com/transport/{z}/{x}/{y}.png?apikey=6170aad10dfd42a38d4d8c709a536f38", {
+      attribution: "© Thunderforest, © OpenStreetMap contributors",
       maxZoom: 19,
     }).addTo(map);
-
-    // Site marker
-    L.marker(center).addTo(map).bindPopup(`<b>${site?.name ?? "Standort"}</b><br/>${site?.address ?? ""}`);
-
-    // Radii
-    L.circle(center, { radius: 300, color: "#3b82f6", fillOpacity: 0.05, weight: 1 }).addTo(map);
-    L.circle(center, { radius: 600, color: "#22c55e", fillOpacity: 0.05, weight: 1 }).addTo(map);
-
-    mapRef.current = map;
-
-    return () => {
-      if (mapRef.current) {
-        mapRef.current.remove();
-        mapRef.current = null;
-      }
-    };
-  }, [center, site?.name, site?.address]);
-
-  // Transit stop markers
-  useEffect(() => {
-    if (!mapRef.current || !center) return;
-    const map = mapRef.current;
-
-    // Remove existing transit markers (store in layer group)
-    if ((map as any)._transitLayer) {
-      (map as any)._transitLayer.clearLayers();
-    }
-    const group = L.layerGroup().addTo(map);
-    (map as any)._transitLayer = group;
-
-    transitStops.forEach(stop => {
-      const dist = haversineDistance(center[0], center[1], stop.lat, stop.lng);
-      const marker = L.circleMarker([stop.lat, stop.lng], {
-        radius: 7,
-        color: stop.type === "U-Bahn" || stop.type === "S-Bahn" ? "#7c3aed" : "#f59e0b",
-        fillColor: stop.type === "U-Bahn" || stop.type === "S-Bahn" ? "#7c3aed" : "#f59e0b",
-        fillOpacity: 0.8,
-        weight: 2,
-      });
-      marker.bindPopup(`<b>${stop.name}</b><br/>${stop.type} · ${stop.lines}<br/>Takt HVZ: ${stop.takt_hvz} min<br/>Entfernung: ${Math.round(dist)} m`);
-      group.addLayer(marker);
-
-      // Line from center to stop
-      L.polyline([center, [stop.lat, stop.lng]], { color: "#94a3b8", weight: 1, dashArray: "4 4" }).addTo(group);
+    mapInstance.current = map;
+    map.on("click", (e: any) => {
+      if (!(window as any).__addStopMode) return;
+      setPendingClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+      setShowAddDialog(true);
     });
-  }, [transitStops, center]);
+  }, [center]);
 
-  // Click handler for adding stops
   useEffect(() => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-    const handler = (e: any) => {
-      if (!addMode) return;
-      setPendingLatLng({ lat: e.latlng.lat, lng: e.latlng.lng });
-      setDialogOpen(true);
-      setAddMode(false);
-    };
-    map.on("click", handler);
-    return () => { map.off("click", handler); };
-  }, [addMode]);
+    (window as any).__addStopMode = addStopMode;
+    if (mapInstance.current) mapInstance.current.getContainer().style.cursor = addStopMode ? "crosshair" : "";
+  }, [addStopMode]);
 
-  const addStop = () => {
-    if (!pendingLatLng || !stopName.trim()) return;
-    const newStop: TransitStop = {
-      id: crypto.randomUUID(),
-      name: stopName.trim(),
-      lat: pendingLatLng.lat,
-      lng: pendingLatLng.lng,
-      type: stopType,
-      lines: stopLines.trim(),
-      takt_hvz: parseInt(stopTakt) || 10,
-    };
-    setTransitStops(prev => [...prev, newStop]);
-    setDialogOpen(false);
-    setStopName(""); setStopType("Bus"); setStopLines(""); setStopTakt("10");
-    setPendingLatLng(null);
+  // Markers
+  useEffect(() => {
+    const map = mapInstance.current;
+    if (!map || !center) return;
+    markersRef.current.forEach((m) => map.removeLayer(m));
+    markersRef.current = [];
+
+    const sm = L.marker(center).addTo(map);
+    sm.bindPopup(`<b>${site?.name || "Standort"}</b><br/>${site?.address || ""}`);
+    markersRef.current.push(sm);
+
+    markersRef.current.push(L.circle(center, { radius: 300, color: "#3b82f6", fillOpacity: 0.04, weight: 1 }).addTo(map));
+    markersRef.current.push(L.circle(center, { radius: 600, color: "#22c55e", fillOpacity: 0.03, weight: 1 }).addTo(map));
+
+    autoStops.forEach((s) => {
+      const dist = Math.round(haversineDistance(center[0], center[1], s.lat, s.lng));
+      const color = STOP_COLORS[s.type] || "#6b7280";
+      const size = s.type === "U-Bahn" || s.type === "S-Bahn" ? 10 : s.type === "Tram" ? 8 : 6;
+      const m = L.circleMarker([s.lat, s.lng], { radius: size, fillColor: color, fillOpacity: 0.6, color: "#6b7280", weight: 1 }).addTo(map);
+      m.bindPopup(`<b>${s.name}</b><br/>${s.type} · Linien: ${s.lines || "–"}<br/>Entfernung: ${dist} m<br/>Takt HVZ: ${s.takt_hvz} min`);
+      markersRef.current.push(m);
+    });
+
+    transitStops.forEach((s) => {
+      const dist = Math.round(haversineDistance(center[0], center[1], s.lat, s.lng));
+      const color = STOP_COLORS[s.type] || "#6b7280";
+      const m = L.circleMarker([s.lat, s.lng], { radius: 10, fillColor: color, fillOpacity: 0.9, color, weight: 2 }).addTo(map);
+      m.bindPopup(`<b>${s.name}</b> <i>(manuell)</i><br/>${s.type} · Linien: ${s.lines || "–"}<br/>Entfernung: ${dist} m<br/>Takt HVZ: ${s.takt_hvz} min`);
+      markersRef.current.push(m);
+    });
+
+    nahversorgung.forEach((p) => {
+      const dist = Math.round(haversineDistance(center[0], center[1], p.lat, p.lng));
+      const icon = NAH_ICONS[p.type] || "📍";
+      const m = L.marker([p.lat, p.lng], { icon: L.divIcon({ html: `<span style="font-size:18px">${icon}</span>`, className: "", iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(map);
+      m.bindPopup(`<b>${p.name}</b><br/>${p.type} · ${dist} m`);
+      markersRef.current.push(m);
+    });
+  }, [center, autoStops, transitStops, nahversorgung, site]);
+
+  const addManualStop = () => {
+    if (!pendingClick) return;
+    const stop: TransitStop = { id: crypto.randomUUID(), name: newStop.name || "Haltestelle", lat: pendingClick.lat, lng: pendingClick.lng, type: newStop.type, lines: newStop.lines, takt_hvz: newStop.takt_hvz, source: "manual" };
+    setTransitStops((prev) => [...prev, stop]);
+    setShowAddDialog(false);
+    setPendingClick(null);
+    setNewStop({ name: "", type: "Bus", lines: "", takt_hvz: 10 });
+    setAddStopMode(false);
   };
 
-  const removeStop = (id: string) => {
-    setTransitStops(prev => prev.filter(s => s.id !== id));
+  const removeManualStop = (id: string) => setTransitStops((prev) => prev.filter((s) => s.id !== id));
+
+  const saveStops = async () => {
+    if (!site) return;
+    setSaving(true);
+    const { error } = await supabase.from("project_sites").update({ metadata: { ...(site.metadata || {}), transit_stops: transitStops } }).eq("id", site.id);
+    setSaving(false);
+    error ? toast.error("Fehler: " + error.message) : toast.success("Haltestellen gespeichert");
   };
 
-  // Save
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from("project_sites").update({
-        metadata: { ...((site?.metadata as any) ?? {}), transit_stops: transitStops },
-      }).eq("id", site.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["project-sites", projectId] });
-      toast.success("ÖPNV-Daten gespeichert");
-    },
-    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
-  });
-
-  // ÖPNV status
-  const oepnvStatus = (() => {
-    if (!center) return false;
-    return transitStops.some(stop => {
-      const dist = haversineDistance(center[0], center[1], stop.lat, stop.lng);
-      if (dist <= 300) return true;
-      if ((stop.type === "U-Bahn" || stop.type === "S-Bahn") && dist <= 600 && stop.takt_hvz <= 10) return true;
-      return false;
-    });
-  })();
-
-  if (!site) {
-    return (
-      <div className="border border-border rounded-md bg-card p-6 text-center">
-        <MapPin className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-        <p className="text-[13px] text-muted-foreground">Kein Standort vorhanden. Bitte zuerst einen Standort anlegen.</p>
-      </div>
-    );
-  }
+  if (!site) return <div className="p-6 text-center text-muted-foreground text-sm">Kein Grundstück angelegt. Bitte zuerst ein Grundstück erstellen.</div>;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <h3 className="text-[13px] font-medium text-foreground">Standortkarte & ÖPNV-Nachweis</h3>
-          <Badge variant={oepnvStatus ? "default" : "destructive"} className="text-[11px]">
-            {oepnvStatus ? "✓ ÖPNV-Nachweis erfüllt" : "✗ ÖPNV-Nachweis ausstehend"}
-          </Badge>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant={addMode ? "default" : "outline"}
-            size="sm"
-            className="h-8 text-[13px]"
-            onClick={() => setAddMode(!addMode)}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            {addMode ? "Klicken Sie auf die Karte…" : "Haltestelle hinzufügen"}
-          </Button>
-          <Button size="sm" className="h-8 text-[13px]" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
-            <Save className="h-3.5 w-3.5 mr-1" />
-            {saveMutation.isPending ? "Speichert…" : "Speichern"}
-          </Button>
-        </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge variant={oepnvStatus ? "default" : "destructive"} className="text-xs">
+          {oepnvStatus ? "✅ ÖPNV-Nachweis erfüllt (StPlS §2 Abs. 3)" : "❌ ÖPNV-Nachweis ausstehend"}
+        </Badge>
+        {overpassLoading && <span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> ÖPNV-Daten werden geladen…</span>}
+        <div className="flex-1" />
+        <Button variant={addStopMode ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setAddStopMode(!addStopMode)}>
+          <Plus className="h-3 w-3 mr-1" /> {addStopMode ? "Klick auf Karte…" : "Haltestelle manuell"}
+        </Button>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={saveStops} disabled={saving}>
+          <Save className="h-3 w-3 mr-1" /> {saving ? "Speichert…" : "Speichern"}
+        </Button>
       </div>
 
-      {/* Map container */}
-      <div
-        ref={mapContainerRef}
-        id="leaflet-map"
-        className={`h-[450px] rounded-md border border-border ${addMode ? "cursor-crosshair" : ""}`}
-        style={{ zIndex: 0 }}
-      />
-
-      {/* Legend */}
-      <div className="flex items-center gap-4 text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-blue-500 inline-block" /> 300m Radius</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-green-500 inline-block" /> 600m Radius</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-amber-500 inline-block" /> Bus/Tram</span>
-        <span className="flex items-center gap-1"><span className="h-2.5 w-2.5 rounded-full bg-violet-600 inline-block" /> U-/S-Bahn</span>
+      <div className="flex items-center gap-3 flex-wrap text-[11px] text-muted-foreground border border-border rounded-md bg-card px-3 py-1.5">
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full mr-1" style={{ background: "#0057A8" }} />U-Bahn</span>
+        <span><span className="inline-block w-2.5 h-2.5 rounded-full mr-1" style={{ background: "#009252" }} />S-Bahn</span>
+        <span><span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: "#E2001A" }} />Tram</span>
+        <span><span className="inline-block w-1.5 h-1.5 rounded-full mr-1" style={{ background: "#F5A400" }} />Bus</span>
+        <span>🛒 Nahversorgung</span>
+        <span className="text-muted-foreground/60">| Grau = automatisch · Farbig = manuell</span>
       </div>
 
-      {/* Transit stops table */}
+      {loading ? (
+        <div className="flex items-center justify-center h-[500px] bg-muted/30 rounded-md"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+      ) : (
+        <div ref={mapRef} id="leaflet-map" className="h-[500px] rounded-md border border-border" />
+      )}
+
       {transitStops.length > 0 && (
-        <div className="border border-border rounded-md bg-card">
-          <div className="px-3 py-2 border-b border-border">
-            <p className="text-[12px] font-medium text-foreground">Erfasste Haltestellen ({transitStops.length})</p>
-          </div>
-          <div className="divide-y divide-border">
-            {transitStops.map(stop => {
-              const dist = center ? Math.round(haversineDistance(center[0], center[1], stop.lat, stop.lng)) : 0;
-              return (
-                <div key={stop.id} className="px-3 py-2 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {stop.type === "U-Bahn" || stop.type === "S-Bahn" ? (
-                      <Train className="h-3.5 w-3.5 text-violet-600" />
-                    ) : (
-                      <Bus className="h-3.5 w-3.5 text-amber-500" />
-                    )}
-                    <div>
-                      <p className="text-[12px] font-medium text-foreground">{stop.name}</p>
-                      <p className="text-[11px] text-muted-foreground">{stop.type} · {stop.lines} · Takt {stop.takt_hvz} min · {dist} m</p>
-                    </div>
-                  </div>
-                  <button onClick={() => removeStop(stop.id)} className="text-muted-foreground hover:text-destructive transition-colors">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
+        <div className="border border-border rounded-md overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/30">
+              <tr>
+                <th className="text-left px-3 py-1.5 font-medium">Name</th>
+                <th className="text-left px-3 py-1.5 font-medium">Typ</th>
+                <th className="text-left px-3 py-1.5 font-medium">Linien</th>
+                <th className="text-left px-3 py-1.5 font-medium">Takt</th>
+                <th className="text-left px-3 py-1.5 font-medium">Entf.</th>
+                <th className="px-3 py-1.5" />
+              </tr>
+            </thead>
+            <tbody>
+              {transitStops.map((s) => (
+                <tr key={s.id} className="border-t border-border">
+                  <td className="px-3 py-1.5">{s.name}</td>
+                  <td className="px-3 py-1.5"><span className="inline-block w-2 h-2 rounded-full mr-1" style={{ background: STOP_COLORS[s.type] }} />{s.type}</td>
+                  <td className="px-3 py-1.5">{s.lines || "–"}</td>
+                  <td className="px-3 py-1.5">{s.takt_hvz} min</td>
+                  <td className="px-3 py-1.5">{center ? `${Math.round(haversineDistance(center[0], center[1], s.lat, s.lng))} m` : "–"}</td>
+                  <td className="px-3 py-1.5"><Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => removeManualStop(s.id)}><Trash2 className="h-3 w-3" /></Button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* Add stop dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader><DialogTitle className="text-[15px]">Haltestelle hinzufügen</DialogTitle></DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Name *</Label>
-              <Input value={stopName} onChange={e => setStopName(e.target.value)} placeholder="z. B. Leuchtenbergring" className="h-9 text-[13px]" />
+      <p className="text-[11px] text-muted-foreground">
+        {autoStops.length} Haltestellen automatisch geladen · {transitStops.length} manuell · {nahversorgung.length} Nahversorger · Radien: 300m (blau) / 600m (grün)
+      </p>
+
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="text-sm">Haltestelle hinzufügen</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label className="text-xs">Name</Label><Input value={newStop.name} onChange={(e) => setNewStop((p) => ({ ...p, name: e.target.value }))} placeholder="z.B. Hauptbahnhof" className="h-8 text-sm" /></div>
+            <div>
+              <Label className="text-xs">Typ</Label>
+              <select value={newStop.type} onChange={(e) => setNewStop((p) => ({ ...p, type: e.target.value as TransitStop["type"] }))} className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm">
+                <option value="Bus">Bus</option>
+                <option value="Tram">Tram</option>
+                <option value="U-Bahn">U-Bahn</option>
+                <option value="S-Bahn">S-Bahn</option>
+              </select>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Typ</Label>
-              <Select value={stopType} onValueChange={setStopType}>
-                <SelectTrigger className="h-9 text-[13px]"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TRANSIT_TYPES.map(t => <SelectItem key={t} value={t} className="text-[13px]">{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Linien</Label>
-              <Input value={stopLines} onChange={e => setStopLines(e.target.value)} placeholder="z. B. S1, S8" className="h-9 text-[13px]" />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-[13px]">Takt HVZ (Minuten)</Label>
-              <Input type="number" value={stopTakt} onChange={e => setStopTakt(e.target.value)} className="h-9 text-[13px]" />
-            </div>
+            <div><Label className="text-xs">Linien</Label><Input value={newStop.lines} onChange={(e) => setNewStop((p) => ({ ...p, lines: e.target.value }))} placeholder="z.B. U3, U6" className="h-8 text-sm" /></div>
+            <div><Label className="text-xs">Takt HVZ (min)</Label><Input type="number" value={newStop.takt_hvz} onChange={(e) => setNewStop((p) => ({ ...p, takt_hvz: parseInt(e.target.value) || 10 }))} className="h-8 text-sm" /></div>
           </div>
           <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} className="text-[13px]">Abbrechen</Button>
-            <Button size="sm" onClick={addStop} disabled={!stopName.trim()} className="text-[13px]">Hinzufügen</Button>
+            <Button variant="outline" size="sm" onClick={() => setShowAddDialog(false)}>Abbrechen</Button>
+            <Button size="sm" onClick={addManualStop}>Hinzufügen</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
