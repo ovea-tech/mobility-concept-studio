@@ -86,7 +86,9 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       const requiredSpaces = rate != null ? Math.ceil(unitCount * rate) : null;
       const includedInMf = benchmark?.included_in_mf ?? true;
       return {
-        ...ut,
+        id: ut.id,
+        name: ut.name ?? '–',
+        unit_count: ut.unit_count,
         housing_type_code: htCode,
         housing_type_label: String(benchmark?.label ?? htCode ?? '–'),
         rate,
