@@ -481,9 +481,9 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
                   </p>
                   {ruleset?.requirements_extended?.optional_measures_per_01_step && (
                     <ul className="mt-2 space-y-0.5">
-                      {(ruleset.requirements_extended.optional_measures_per_01_step as string[]).map((m: string, i: number) => (
+                      {(ruleset.requirements_extended.optional_measures_per_01_step as Array<{id: string; label: string} | string>).map((m, i) => (
                         <li key={i} className="text-[11px] text-muted-foreground flex items-center gap-1.5">
-                          <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" /> {m}
+                          <span className="h-1 w-1 rounded-full bg-muted-foreground/50 shrink-0" /> {typeof m === 'string' ? m : m.label}
                         </li>
                       ))}
                     </ul>
