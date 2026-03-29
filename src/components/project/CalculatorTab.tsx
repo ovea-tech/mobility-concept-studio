@@ -526,7 +526,37 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
           </section>
         )}
 
-        {/* FIX 5: Smart Guidance after MF calculation */}
+        {/* BLOCK 6: Wirtschaftliche Einschätzung */}
+        {calculation?.mf != null && calculation.sumN > calculation.E && (() => {
+          const eingesparte = Math.max(0, calculation.sumN - calculation.E);
+          const baukosten = eingesparte * 25000;
+          const flaeche = eingesparte * 12.5;
+          const mietpotenzial = Math.round(flaeche * 18 * 12);
+          return (
+            <section className="space-y-3">
+              <h3 className="text-[13px] font-medium text-foreground">Wirtschaftliche Einschätzung</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="border border-border rounded-md bg-muted/20 p-3">
+                  <p className="text-[11px] text-muted-foreground">Einsparung Baukosten</p>
+                  <p className="text-[16px] font-bold text-foreground tabular-nums mt-1">{baukosten.toLocaleString("de-DE")} €</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{eingesparte} StP × 25.000 €</p>
+                </div>
+                <div className="border border-border rounded-md bg-muted/20 p-3">
+                  <p className="text-[11px] text-muted-foreground">Gewonnene Fläche</p>
+                  <p className="text-[16px] font-bold text-foreground tabular-nums mt-1">{flaeche.toLocaleString("de-DE")} m²</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Umnutzung als Wohn-/Bürofläche</p>
+                </div>
+                <div className="border border-border rounded-md bg-muted/20 p-3">
+                  <p className="text-[11px] text-muted-foreground">Mietpotenzial p.a.</p>
+                  <p className="text-[16px] font-bold text-foreground tabular-nums mt-1">{mietpotenzial.toLocaleString("de-DE")} €</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Bei 18 €/m² Münchner Mietspiegel</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">* Planungsrichtwerte. Individuelle Kalkulation empfohlen.</p>
+            </section>
+          );
+        })()}
+
         {calculation?.mf != null && calculation.stufe && onNavigate && (
           calculation.stufe === "standard" ? (
             <div className="border border-green-300 bg-green-50 dark:bg-green-950/20 dark:border-green-800 rounded-md px-4 py-3 flex items-start justify-between gap-3">
