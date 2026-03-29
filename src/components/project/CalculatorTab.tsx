@@ -21,6 +21,16 @@ import { Lock, Info, AlertTriangle, CheckCircle, Calculator, Mail, Save, RotateC
 const thClass = "text-[11px] uppercase tracking-wider text-muted-foreground/70 font-medium";
 const tdClass = "text-[13px]";
 
+const NON_RESIDENTIAL_RATES: Record<string, {label: string; ratePerQm: number; unitLabel: string}> = {
+  "Büro":          { label: "Büro / Verwaltung",      ratePerQm: 40,  unitLabel: "m² BGF je StP" },
+  "Einzelhandel":  { label: "Einzelhandel",            ratePerQm: 30,  unitLabel: "m² VKF je StP" },
+  "Gewerbe":       { label: "Gewerbe / Industrie",     ratePerQm: 60,  unitLabel: "m² BGF je StP" },
+  "Gastronomie":   { label: "Gastronomie",             ratePerQm: 25,  unitLabel: "m² BGF je StP" },
+  "Hotel":         { label: "Hotel / Beherbergung",    ratePerQm: 50,  unitLabel: "m² BGF je StP" },
+  "Kita":          { label: "Kita / Schule",           ratePerQm: 75,  unitLabel: "m² BGF je StP" },
+  "Arztpraxis":    { label: "Arztpraxis / Gesundheit", ratePerQm: 30,  unitLabel: "m² BGF je StP" },
+};
+
 interface CalculatorTabProps {
   projectId: string;
   project: any;
@@ -81,6 +91,23 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
 
     const rows = (useTypes ?? []).map((ut) => {
       const meta = (ut.metadata ?? {}) as any;
+      const cat = ut.category as string | undefined;
+      const nonRes = cat ? NON_RESIDENTIAL_RATES[cat] : undefined;
+
+      if (nonRes && cat !== "Wohnen") {
+        // Non-residential: rate based on BGF
+        const bgf = ut.gross_floor_area_sqm ?? 0;
+        const requiredSpaces = bgf > 0 ? Math.ceil(bgf / nonRes.ratePerQm) : null;
+        return {
+          id: ut.id, name: ut.name ?? '–', unit_count: ut.unit_count,
+          category: cat, gross_floor_area_sqm: bgf,
+          housing_type_code: undefined, housing_type_label: nonRes.label,
+          rate: nonRes.ratePerQm, rateLabel: nonRes.unitLabel,
+          requiredSpaces, includedInMf: true, isResidential: false,
+        };
+      }
+
+      // Residential (Wohnen) logic
       const htCode = meta.housing_type_code as string | undefined;
       const benchmark = benchmarks.find((b: any) => b.code === htCode);
       const rate = benchmark?.rate != null ? parseFloat(String(benchmark.rate)) : null;
@@ -88,14 +115,11 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       const requiredSpaces = rate != null ? Math.ceil(unitCount * rate) : null;
       const includedInMf = benchmark?.included_in_mf ?? true;
       return {
-        id: ut.id,
-        name: ut.name ?? '–',
-        unit_count: ut.unit_count,
-        housing_type_code: htCode,
-        housing_type_label: String(benchmark?.label ?? htCode ?? '–'),
-        rate,
-        requiredSpaces,
-        includedInMf,
+        id: ut.id, name: ut.name ?? '–', unit_count: ut.unit_count,
+        category: cat ?? "Wohnen", gross_floor_area_sqm: ut.gross_floor_area_sqm,
+        housing_type_code: htCode, housing_type_label: String(benchmark?.label ?? htCode ?? '–'),
+        rate, rateLabel: "StP/WE",
+        requiredSpaces, includedInMf, isResidential: true,
       };
     });
 
@@ -317,44 +341,46 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
                   <TableRow key={row.id}>
                     <TableCell className={`${tdClass} font-medium`}>{row.name}</TableCell>
                     <TableCell>
-                      <select
-                        value={row.housing_type_code ?? ""}
-                        onChange={(e) => {
-                          if (!isLocked && e.target.value) {
-                            setHousingTypeMutation.mutate({ useTypeId: row.id, code: e.target.value });
-                          }
-                        }}
-                        disabled={isLocked}
-                        className="h-7 w-44 text-[12px] border border-input rounded-md bg-background px-2 text-foreground disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        <option value="">Auswählen…</option>
-                        {benchmarks.map((b) => (
-                          <option key={String(b.code)} value={String(b.code)}>
-                            {String(b.label)}
-                          </option>
-                        ))}
-                      </select>
+                      {row.isResidential ? (
+                        <select
+                          value={row.housing_type_code ?? ""}
+                          onChange={(e) => {
+                            if (!isLocked && e.target.value) {
+                              setHousingTypeMutation.mutate({ useTypeId: row.id, code: e.target.value });
+                            }
+                          }}
+                          disabled={isLocked}
+                          className="h-7 w-44 text-[12px] border border-input rounded-md bg-background px-2 text-foreground disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-ring"
+                        >
+                          <option value="">Auswählen…</option>
+                          {benchmarks.map((b) => (
+                            <option key={String(b.code)} value={String(b.code)}>
+                              {String(b.label)}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-[10px]">{row.category}</Badge>
+                          <span className="text-[11px] text-muted-foreground">{row.gross_floor_area_sqm} m² BGF</span>
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell className={`${tdClass} text-right tabular-nums`}>{row.unit_count ?? 0}</TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums`}>
-                      {row.rate != null ? `${Number(row.rate).toFixed(1)} StP/WE` : "–"}
+                      {row.isResidential ? (row.unit_count ?? 0) : "–"}
+                    </TableCell>
+                    <TableCell className={`${tdClass} text-right tabular-nums`}>
+                      {row.rate != null ? (row.isResidential ? `${Number(row.rate).toFixed(1)} StP/WE` : `1/${row.rate} m²`) : "–"}
                     </TableCell>
                     <TableCell className={`${tdClass} text-right tabular-nums font-medium bg-muted/30`}>
                       {row.requiredSpaces ?? "–"}
                     </TableCell>
                     <TableCell>
-                      {row.housing_type_code ? (
+                      {(row.housing_type_code || !row.isResidential) ? (
                         row.includedInMf ? (
                           <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-0">Ja</Badge>
                         ) : (
-                          <Tooltip>
-                            <TooltipTrigger>
-                              <Badge variant="secondary" className="text-[10px] border-0">Nein</Badge>
-                            </TooltipTrigger>
-                            <TooltipContent className="text-[11px]">
-                              {row.housing_type_label} fließt nicht in MF-Berechnung ein
-                            </TooltipContent>
-                          </Tooltip>
+                          <Badge variant="secondary" className="text-[10px] border-0">Nein</Badge>
                         )
                       ) : (
                         <span className="text-[11px] text-muted-foreground">–</span>
@@ -502,7 +528,37 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
           </section>
         )}
 
-        {/* FIX 5: Smart Guidance after MF calculation */}
+        {/* BLOCK 6: Wirtschaftliche Einschätzung */}
+        {calculation?.mf != null && calculation.sumN > calculation.E && (() => {
+          const eingesparte = Math.max(0, calculation.sumN - calculation.E);
+          const baukosten = eingesparte * 25000;
+          const flaeche = eingesparte * 12.5;
+          const mietpotenzial = Math.round(flaeche * 18 * 12);
+          return (
+            <section className="space-y-3">
+              <h3 className="text-[13px] font-medium text-foreground">Wirtschaftliche Einschätzung</h3>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="border border-border rounded-md bg-muted/20 p-3">
+                  <p className="text-[11px] text-muted-foreground">Einsparung Baukosten</p>
+                  <p className="text-[16px] font-bold text-foreground tabular-nums mt-1">{baukosten.toLocaleString("de-DE")} €</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{eingesparte} StP × 25.000 €</p>
+                </div>
+                <div className="border border-border rounded-md bg-muted/20 p-3">
+                  <p className="text-[11px] text-muted-foreground">Gewonnene Fläche</p>
+                  <p className="text-[16px] font-bold text-foreground tabular-nums mt-1">{flaeche.toLocaleString("de-DE")} m²</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Umnutzung als Wohn-/Bürofläche</p>
+                </div>
+                <div className="border border-border rounded-md bg-muted/20 p-3">
+                  <p className="text-[11px] text-muted-foreground">Mietpotenzial p.a.</p>
+                  <p className="text-[16px] font-bold text-foreground tabular-nums mt-1">{mietpotenzial.toLocaleString("de-DE")} €</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Bei 18 €/m² Münchner Mietspiegel</p>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground">* Planungsrichtwerte. Individuelle Kalkulation empfohlen.</p>
+            </section>
+          );
+        })()}
+
         {calculation?.mf != null && calculation.stufe && onNavigate && (
           calculation.stufe === "standard" ? (
             <div className="border border-green-300 bg-green-50 dark:bg-green-950/20 dark:border-green-800 rounded-md px-4 py-3 flex items-start justify-between gap-3">
