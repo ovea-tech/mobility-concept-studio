@@ -36,7 +36,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
   const ruleset = packVersionData?.ruleset as any;
   const engineType = ruleset?.calculation_engine?.type;
   const rawBenchmarks = ruleset?.calculation_engine?.residential_benchmarks ?? [];
-  const rulesetLoading = !project?.jurisdiction_pack_versions || (ruleset != null && rawBenchmarks.length === 0);
+  const rulesetLoadingPre = !project?.jurisdiction_pack_versions;
   const benchmarks: Array<{code: string; label: string; rate: number; included_in_mf: boolean}> =
     (Array.isArray(rawBenchmarks) ? rawBenchmarks : []).map((b: any) => ({
       code:           String(b?.code  ?? ''),
@@ -44,6 +44,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
       rate:           parseFloat(String(b?.rate ?? 0)),
       included_in_mf: b?.included_in_mf !== false && b?.included_in_mf !== 'false',
     })).filter(b => b.code !== '');
+  const rulesetLoading = rulesetLoadingPre || benchmarks.length === 0;
 
   /* ── Nutzungsarten ── */
   const { data: useTypes } = useQuery({
