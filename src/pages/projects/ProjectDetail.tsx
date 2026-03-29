@@ -38,6 +38,8 @@ import {
 import { CalculatorTab } from "@/components/project/CalculatorTab";
 import { ComplianceTab } from "@/components/project/ComplianceTab";
 import { FormblattViewer } from "@/components/project/FormblattViewer";
+import { SiteMapTab } from "@/components/project/SiteMapTab";
+import { PlanDrawingTab } from "@/components/project/PlanDrawingTab";
 import { WorkflowStepper, WORKFLOW_STEPS, type WorkflowStep } from "@/components/project/WorkflowStepper";
 import { ErrorBoundary } from "@/components/shared/ErrorBoundary";
 
