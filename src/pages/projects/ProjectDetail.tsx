@@ -1463,7 +1463,12 @@ function MonitoringTab({ projectId }: { projectId: string }) {
    DOCUMENTS TAB
    ══════════════════════════════════════════════ */
 function DocumentsTab({ projectId, project }: { projectId: string; project: any }) {
+  const queryClient = useQueryClient();
   const [showFormblatt, setShowFormblatt] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [deleteDocId, setDeleteDocId] = useState<string | null>(null);
+  const [deleteDocPath, setDeleteDocPath] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const { data: useTypes } = useQuery({
     queryKey: ["use_types_doc", projectId],
@@ -1497,10 +1502,84 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
     },
   });
 
+  const { data: projectDocs, isLoading: docsLoading } = useQuery({
+    queryKey: ["project-documents", projectId],
+    queryFn: async () => {
+      const { data } = await supabase.from("project_documents").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
+  const deleteDocMutation = useMutation({
+    mutationFn: async () => {
+      if (!deleteDocId) return;
+      if (deleteDocPath) {
+        await supabase.storage.from("project-attachments").remove([deleteDocPath]);
+      }
+      const { error } = await supabase.from("project_documents").delete().eq("id", deleteDocId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
+      toast.success("Dokument gelöscht");
+      setDeleteDocId(null);
+      setDeleteDocPath(null);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  const handleDownload = async (doc: any) => {
+    try {
+      const { data, error } = await supabase.storage.from("project-attachments").download(doc.file_path);
+      if (error) throw error;
+      const url = URL.createObjectURL(data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = doc.file_name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast.error("Download fehlgeschlagen: " + (err.message || "Unbekannt"));
+    }
+  };
+
+  const handlePreview = async (doc: any) => {
+    try {
+      const { data, error } = await supabase.storage.from("project-attachments").download(doc.file_path);
+      if (error) throw error;
+      const url = URL.createObjectURL(data);
+      setPreviewUrl(url);
+    } catch (err: any) {
+      toast.error("Vorschau fehlgeschlagen: " + (err.message || "Unbekannt"));
+    }
+  };
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return "–";
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
   const canGenerateFormblatt = project?.status === "submitted" || project?.status === "approved";
   const ruleset = (project?.jurisdiction_pack_versions as any)?.ruleset;
   const formTemplateId = ruleset?.submission?.form_template_id;
   const isFormSupported = formTemplateId === "munich_lbk_2023" || !formTemplateId;
+
+  // PDF preview overlay
+  if (previewUrl) {
+    return (
+      <div className="fixed inset-0 z-50 bg-background flex flex-col">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+          <span className="text-[13px] font-medium">Dokumentvorschau</span>
+          <Button variant="outline" size="sm" onClick={() => { URL.revokeObjectURL(previewUrl); setPreviewUrl(null); }} className="text-[13px]">
+            Schließen
+          </Button>
+        </div>
+        <iframe src={previewUrl} className="flex-1 w-full" />
+      </div>
+    );
+  }
 
   if (showFormblatt) {
     return (
@@ -1519,17 +1598,22 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
   return (
     <div className="space-y-6">
       <TabToolbar label="Dokumente & Formulare">
-        {isFormSupported ? (
-          <Button
-            size="sm"
-            className="h-8 text-[13px]"
-            disabled={!canGenerateFormblatt}
-            onClick={() => setShowFormblatt(true)}
-            title={!canGenerateFormblatt ? "Erst Konzept finalisieren" : undefined}
-          >
-            <FileText className="h-3.5 w-3.5 mr-1.5" /> Formblatt vorbereiten
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="h-8 text-[13px]" onClick={() => setUploadOpen(true)}>
+            <Upload className="h-3.5 w-3.5 mr-1.5" /> Dokument hochladen
           </Button>
-        ) : null}
+          {isFormSupported ? (
+            <Button
+              size="sm"
+              className="h-8 text-[13px]"
+              disabled={!canGenerateFormblatt}
+              onClick={() => setShowFormblatt(true)}
+              title={!canGenerateFormblatt ? "Erst Konzept finalisieren" : undefined}
+            >
+              <FileText className="h-3.5 w-3.5 mr-1.5" /> Formblatt vorbereiten
+            </Button>
+          ) : null}
+        </div>
       </TabToolbar>
 
       {!isFormSupported && (
@@ -1538,20 +1622,19 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
           <div>
             <p className="text-[13px] font-medium text-foreground">Kein digitales Formblatt verfügbar</p>
             <p className="text-[12px] text-muted-foreground mt-0.5">
-              Für diese Kommune ist noch kein digitales Formblatt hinterlegt. Bitte laden Sie das Formblatt manuell von der zuständigen Behörde herunter.
+              Für diese Kommune ist noch kein digitales Formblatt hinterlegt.
             </p>
           </div>
         </div>
       )}
 
-      {/* FIX 3: Enhanced empty state for documents */}
-      {isFormSupported && canGenerateFormblatt && !outputPackages?.length && !opLoading && (
+      {isFormSupported && canGenerateFormblatt && !outputPackages?.length && !opLoading && !projectDocs?.length && (
         <div className="border border-border rounded-md bg-card p-6 text-center space-y-3">
           <FileText className="h-8 w-8 text-muted-foreground mx-auto" />
           <div>
             <p className="text-[14px] font-medium text-foreground">Bereit zur Einreichung</p>
             <p className="text-[12px] text-muted-foreground mt-1 max-w-md mx-auto">
-              Das Konzept ist finalisiert. Bereiten Sie jetzt das offizielle LBK-Formblatt vor – alle Daten werden automatisch eingetragen.
+              Das Konzept ist finalisiert. Bereiten Sie jetzt das offizielle LBK-Formblatt vor.
             </p>
           </div>
           <Button size="sm" className="text-[13px]" onClick={() => setShowFormblatt(true)}>
@@ -1568,6 +1651,45 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
         </div>
       )}
 
+      {/* Uploaded project documents */}
+      <div>
+        <h3 className="text-[13px] font-medium text-foreground mb-3">Projektdokumente</h3>
+        {docsLoading ? <LoadingSkeleton rows={2} /> :
+         !projectDocs?.length ? (
+          <p className="text-[12px] text-muted-foreground">Noch keine Dokumente hochgeladen.</p>
+        ) : (
+          <Table>
+            <TableHeader><TableRow>
+              <TableHead className={thClass}>Name</TableHead>
+              <TableHead className={thClass}>Typ</TableHead>
+              <TableHead className={thClass}>Größe</TableHead>
+              <TableHead className={thClass}>Hochgeladen am</TableHead>
+              <TableHead className={thClass} />
+            </TableRow></TableHeader>
+            <TableBody>
+              {projectDocs.map((doc) => (
+                <TableRow key={doc.id}>
+                  <TableCell className={`${tdClass} font-medium`}>{doc.name}</TableCell>
+                  <TableCell className={tdMuted}>{doc.document_type ?? "–"}</TableCell>
+                  <TableCell className={`${tdMuted} tabular-nums`}>{formatFileSize(doc.file_size_bytes)}</TableCell>
+                  <TableCell className={`${tdMuted} tabular-nums`}>{doc.created_at ? format(new Date(doc.created_at), "dd.MM.yyyy HH:mm") : "–"}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      {doc.file_type?.includes("pdf") && (
+                        <ActionIcon icon={FileText} onClick={() => handlePreview(doc)} title="Vorschau" />
+                      )}
+                      <ActionIcon icon={Download} onClick={() => handleDownload(doc)} title="Download" />
+                      <ActionIcon icon={Trash2} onClick={() => { setDeleteDocId(doc.id); setDeleteDocPath(doc.file_path); }} title="Löschen" variant="destructive" />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      {/* Generated output packages */}
       <div>
         <h3 className="text-[13px] font-medium text-foreground mb-3">Erzeugte Dokumente</h3>
         {opLoading ? <LoadingSkeleton rows={2} /> :
@@ -1592,7 +1714,92 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
           </Table>
         )}
       </div>
+
+      {/* Import CreateDocumentDialog */}
+      <CreateDocumentDialogInline open={uploadOpen} onOpenChange={setUploadOpen} projectId={projectId} />
+      <DeleteConfirm open={!!deleteDocId} onOpenChange={(v) => { if (!v) { setDeleteDocId(null); setDeleteDocPath(null); } }} title="Dokument löschen?" description="Das Dokument und die Datei werden unwiderruflich gelöscht." onConfirm={() => deleteDocMutation.mutate()} isPending={deleteDocMutation.isPending} />
     </div>
+  );
+}
+
+/* Inline wrapper for CreateDocumentDialog - to avoid circular import */
+function CreateDocumentDialogInline({ open, onOpenChange, projectId }: { open: boolean; onOpenChange: (v: boolean) => void; projectId: string }) {
+  const queryClient = useQueryClient();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [name, setName] = React.useState("");
+  const [documentType, setDocumentType] = React.useState("");
+  const [file, setFile] = React.useState<File | null>(null);
+
+  const DOC_TYPES_INLINE = ["Mobilitätskonzept", "Carsharing-Vertrag", "ÖPNV-Nachweis", "Lageplan", "Fahrradkonzept", "Betreibervertrag", "Baugenehmigung", "Gutachten", "Sonstiges"];
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0];
+    if (!selected) return;
+    if (selected.size > 20 * 1024 * 1024) { toast.error("Datei zu groß – max. 20 MB"); return; }
+    setFile(selected);
+    if (!name.trim()) setName(selected.name.replace(/\.[^.]+$/, ""));
+  };
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (!file) throw new Error("Keine Datei ausgewählt");
+      const { data: user } = await supabase.auth.getUser();
+      const storagePath = `projects/${projectId}/${Date.now()}_${file.name}`;
+      const { error: upErr } = await supabase.storage.from("project-attachments").upload(storagePath, file);
+      if (upErr) throw upErr;
+      const { error } = await supabase.from("project_documents").insert({
+        name: name.trim(), file_name: file.name, file_path: storagePath,
+        file_size_bytes: file.size, file_type: file.type,
+        document_type: documentType || null, project_id: projectId,
+        uploaded_by: user.user?.id || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
+      toast.success("Dokument hochgeladen");
+      onOpenChange(false);
+      setName(""); setDocumentType(""); setFile(null);
+    },
+    onError: (err: any) => toast.error("Fehler: " + (err.message || "Unbekannt")),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle className="text-[15px]">Dokument hochladen</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <input type="file" ref={fileInputRef} accept=".pdf,.jpg,.jpeg,.png,.docx" style={{ display: "none" }} onChange={handleFileSelect} />
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Datei *</Label>
+            <div className="border border-dashed border-border rounded-md p-4 text-center cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => fileInputRef.current?.click()}>
+              {file ? (
+                <div><p className="text-[13px] font-medium text-foreground">{file.name}</p><p className="text-[11px] text-muted-foreground">{(file.size / 1024).toFixed(0)} KB</p></div>
+              ) : (
+                <div><Upload className="h-5 w-5 text-muted-foreground mx-auto" /><p className="text-[12px] text-muted-foreground mt-1">Klicken um Datei auszuwählen</p></div>
+              )}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Dokumentname *</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. Stellplatznachweis" className="h-9 text-[13px]" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-[13px]">Dokumenttyp</Label>
+            <Select value={documentType} onValueChange={setDocumentType}>
+              <SelectTrigger className="h-9 text-[13px]"><SelectValue placeholder="Typ wählen…" /></SelectTrigger>
+              <SelectContent>{DOC_TYPES_INLINE.map(t => <SelectItem key={t} value={t} className="text-[13px]">{t}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
+          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || !file || mutation.isPending} className="text-[13px]">
+            {mutation.isPending ? "Wird hochgeladen…" : "Hochladen"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
