@@ -1570,7 +1570,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
                 <TableRow key={op.id}>
                   <TableCell className={`${tdClass} font-mono`}>{op.file_name ?? op.name}</TableCell>
                   <TableCell className={tdMuted}>{op.package_type ?? "–"}</TableCell>
-                  <TableCell className={tdMuted}>{format(new Date(op.created_at), "dd.MM.yyyy HH:mm")}</TableCell>
+                  <TableCell className={tdMuted}>{op.created_at ? format(new Date(op.created_at), "dd.MM.yyyy HH:mm") : "–"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
