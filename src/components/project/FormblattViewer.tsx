@@ -78,8 +78,12 @@ export function FormblattViewer({ project, useTypes, sites, measures, onClose }:
     const pdfDoc = await PDFDocument.load(arrayBuffer);
     const form = pdfDoc.getForm();
 
-    const setText = (id: string, val: string) => {
-      try { form.getTextField(id).setText(val); } catch {}
+    const setText = (id: string, val: string, fontSize = 10) => {
+      try {
+        const f = form.getTextField(id);
+        f.setText(val);
+        f.setFontSize(fontSize);
+      } catch {}
     };
     const setCheck = (id: string, v: boolean) => {
       try { const cb = form.getCheckBox(id); v ? cb.check() : cb.uncheck(); } catch {}
@@ -148,7 +152,7 @@ export function FormblattViewer({ project, useTypes, sites, measures, onClose }:
       measures.length > 0
         ? measures.map((m: any) => m.name + (m.description ? "\n" + m.description : "")).join("\n\n")
         : "Individuelle Beschreibung der Mobilitätsmaßnahmen (bitte ausfüllen)";
-    setText("Individuell", massText);
+    setText("Individuell", massText, 12);
 
     // SEITE 5 + 6
     setText("Datum Unterschrift", today);
