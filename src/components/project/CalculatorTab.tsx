@@ -36,7 +36,7 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
   const ruleset = packVersionData?.ruleset as any;
   const engineType = ruleset?.calculation_engine?.type;
   const rawBenchmarks = ruleset?.calculation_engine?.residential_benchmarks ?? [];
-  const rulesetLoading = !project?.jurisdiction_pack_versions || (ruleset != null && !Array.isArray(rawBenchmarks));
+  const rulesetLoading = !project?.jurisdiction_pack_versions || (ruleset != null && benchmarks.length === 0);
   const benchmarks: Array<{code: string; label: string; rate: number; included_in_mf: boolean}> =
     (Array.isArray(rawBenchmarks) ? rawBenchmarks : []).map((b: any) => ({
       code:           String(b?.code  ?? ''),
