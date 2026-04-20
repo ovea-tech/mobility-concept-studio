@@ -1625,6 +1625,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("project_documents").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const deleteDocMutation = useMutation({
