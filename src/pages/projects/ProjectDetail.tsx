@@ -2274,21 +2274,30 @@ function CreateUseTypeDialog({ open, onOpenChange, projectId }: { open: boolean;
           <div className="grid grid-cols-2 gap-3">
             {(!category || category === "Wohnen" || category === "Sonstiges") && (
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Anzahl Einheiten</Label>
+                <Label className="text-[13px]">Anzahl Einheiten {category === "Wohnen" ? "*" : ""}</Label>
                 <Input value={unitCount} onChange={(e) => setUnitCount(e.target.value)} type="number" placeholder="z. B. 120" className="h-9 text-[13px]" />
+                {category === "Wohnen" && !unitCount && <p className="text-[10px] text-amber-600 mt-1">Anzahl WE ist bei Wohnen Pflicht</p>}
               </div>
             )}
             <div className="space-y-1.5">
               <Label className="text-[13px]">BGF (m²) {category && category !== "Wohnen" && category !== "Sonstiges" ? "*" : ""}</Label>
               <Input value={gfa} onChange={(e) => setGfa(e.target.value)} type="number" placeholder="z. B. 8500" className="h-9 text-[13px]" />
+              {(["Büro","Einzelhandel","Gewerbe","Gastronomie","Hotel","Kita","Arztpraxis"].includes(category)) && !gfa && <p className="text-[10px] text-amber-600 mt-1">BGF ist bei {category} Pflicht</p>}
             </div>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
-          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
-            {mutation.isPending ? "Erstellt…" : "Anlegen"}
-          </Button>
+          {(() => {
+            const NON_RES_CATS = ["Büro","Einzelhandel","Gewerbe","Gastronomie","Hotel","Kita","Arztpraxis"];
+            const isNonRes = NON_RES_CATS.includes(category);
+            const isInvalid = !name.trim() || (isNonRes && !gfa) || (category === "Wohnen" && !unitCount);
+            return (
+              <Button size="sm" onClick={() => mutation.mutate()} disabled={isInvalid || mutation.isPending} className="text-[13px]">
+                {mutation.isPending ? "Erstellt…" : "Anlegen"}
+              </Button>
+            );
+          })()}
         </DialogFooter>
       </DialogContent>
     </Dialog>
