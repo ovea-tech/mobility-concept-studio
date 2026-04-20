@@ -1589,6 +1589,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("use_types").select("*").eq("project_id", projectId).order("created_at");
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const { data: sites } = useQuery({
@@ -1597,6 +1598,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("project_sites").select("*").eq("project_id", projectId);
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const { data: measures } = useQuery({
@@ -1605,6 +1607,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("measures").select("*").eq("project_id", projectId);
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const { data: outputPackages, isLoading: opLoading } = useQuery({
@@ -1613,6 +1616,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("output_packages").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const { data: projectDocs, isLoading: docsLoading } = useQuery({
