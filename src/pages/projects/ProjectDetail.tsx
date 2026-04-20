@@ -831,7 +831,8 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
   const activeReduction = scenarios?.find(s => s.is_baseline)?.total_reduction_pct ?? scenarios?.[0]?.total_reduction_pct ?? null;
   const sumN = baselineReqs?.reduce((s, r) => s + (Number(r.required_spaces) || 0), 0) ?? 0;
   const E = projectData?.erected_parking_spaces ?? null;
-  const verbleibend = E != null && sumN > 0 ? E : null;
+  const differenz = E != null && sumN > 0 ? (E - sumN) : null;
+  const bilanzStatus = differenz != null ? (differenz >= 0 ? "Überschuss" : "Defizit") : null;
 
   return (
     <div className="mt-6 space-y-4">
@@ -860,8 +861,15 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
             <div className="text-[15px] font-semibold text-foreground tabular-nums">{activeReduction != null ? `${activeReduction}%` : "–"}</div>
           </div>
           <div className="bg-muted/30 rounded px-3 py-2">
-            <div className="text-[11px] text-muted-foreground">Verbleibend</div>
-            <div className="text-[15px] font-semibold text-foreground tabular-nums">{verbleibend != null ? verbleibend : "–"}</div>
+            <div className="text-[11px] text-muted-foreground">Errichtet / Pflicht</div>
+            <div className={`text-[15px] font-semibold tabular-nums ${differenz == null ? "text-foreground" : differenz >= 0 ? "text-green-600" : "text-amber-600"}`}>
+              {E != null ? E : "–"} / {sumN > 0 ? sumN : "–"}
+            </div>
+            {differenz != null && (
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {bilanzStatus}: {differenz >= 0 ? "+" : ""}{differenz} StP
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1461,7 +1469,7 @@ function MonitoringTab({ projectId }: { projectId: string }) {
       )}
 
       <p className="text-[11px] text-muted-foreground mt-4">
-        E-Mail-Benachrichtigungen werden X Tage vor Fälligkeit automatisch versendet.
+        E-Mail-Benachrichtigungen werden zum gesetzten Zeitpunkt vor Fälligkeit automatisch versendet.
         Die Konfiguration des E-Mail-Versands erfolgt über Supabase Edge Functions.
       </p>
 
@@ -1581,6 +1589,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("use_types").select("*").eq("project_id", projectId).order("created_at");
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const { data: sites } = useQuery({
@@ -1589,6 +1598,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("project_sites").select("*").eq("project_id", projectId);
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const { data: measures } = useQuery({
@@ -1597,6 +1607,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("measures").select("*").eq("project_id", projectId);
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const { data: outputPackages, isLoading: opLoading } = useQuery({
@@ -1605,6 +1616,7 @@ function DocumentsTab({ projectId, project }: { projectId: string; project: any 
       const { data } = await supabase.from("output_packages").select("*").eq("project_id", projectId).order("created_at", { ascending: false });
       return data ?? [];
     },
+    enabled: !!projectId,
   });
 
   const { data: projectDocs, isLoading: docsLoading } = useQuery({
@@ -2266,21 +2278,30 @@ function CreateUseTypeDialog({ open, onOpenChange, projectId }: { open: boolean;
           <div className="grid grid-cols-2 gap-3">
             {(!category || category === "Wohnen" || category === "Sonstiges") && (
               <div className="space-y-1.5">
-                <Label className="text-[13px]">Anzahl Einheiten</Label>
+                <Label className="text-[13px]">Anzahl Einheiten {category === "Wohnen" ? "*" : ""}</Label>
                 <Input value={unitCount} onChange={(e) => setUnitCount(e.target.value)} type="number" placeholder="z. B. 120" className="h-9 text-[13px]" />
+                {category === "Wohnen" && !unitCount && <p className="text-[10px] text-amber-600 mt-1">Anzahl WE ist bei Wohnen Pflicht</p>}
               </div>
             )}
             <div className="space-y-1.5">
               <Label className="text-[13px]">BGF (m²) {category && category !== "Wohnen" && category !== "Sonstiges" ? "*" : ""}</Label>
               <Input value={gfa} onChange={(e) => setGfa(e.target.value)} type="number" placeholder="z. B. 8500" className="h-9 text-[13px]" />
+              {(["Büro","Einzelhandel","Gewerbe","Gastronomie","Hotel","Kita","Arztpraxis"].includes(category)) && !gfa && <p className="text-[10px] text-amber-600 mt-1">BGF ist bei {category} Pflicht</p>}
             </div>
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="text-[13px]">Abbrechen</Button>
-          <Button size="sm" onClick={() => mutation.mutate()} disabled={!name.trim() || mutation.isPending} className="text-[13px]">
-            {mutation.isPending ? "Erstellt…" : "Anlegen"}
-          </Button>
+          {(() => {
+            const NON_RES_CATS = ["Büro","Einzelhandel","Gewerbe","Gastronomie","Hotel","Kita","Arztpraxis"];
+            const isNonRes = NON_RES_CATS.includes(category);
+            const isInvalid = !name.trim() || (isNonRes && !gfa) || (category === "Wohnen" && !unitCount);
+            return (
+              <Button size="sm" onClick={() => mutation.mutate()} disabled={isInvalid || mutation.isPending} className="text-[13px]">
+                {mutation.isPending ? "Erstellt…" : "Anlegen"}
+              </Button>
+            );
+          })()}
         </DialogFooter>
       </DialogContent>
     </Dialog>

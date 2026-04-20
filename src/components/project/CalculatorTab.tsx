@@ -182,18 +182,16 @@ export function CalculatorTab({ projectId, project, onNavigate }: CalculatorTabP
           },
         }));
 
-      // Delete existing for this project (only if rows exist)
-      const { data: existing } = await supabase
-        .from("baseline_requirements")
-        .select("id")
-        .eq("project_id", projectId);
-      if (existing && existing.length > 0) {
-        await supabase.from("baseline_requirements").delete().eq("project_id", projectId);
-      }
+      // Atomic upsert pattern: delete all, then insert. The SELECT is unnecessary - delete is idempotent.
+      const { error: delErr } = await supabase.from("baseline_requirements").delete().eq("project_id", projectId);
+      if (delErr) throw delErr;
 
       if (brInserts.length > 0) {
         const { error } = await supabase.from("baseline_requirements").insert(brInserts as any);
-        if (error) throw error;
+        if (error) {
+          // Rollback-Hinweis: Delete ist durchgeführt aber Insert fehlgeschlagen
+          throw new Error("Speichern fehlgeschlagen. Bitte erneut versuchen: " + error.message);
+        }
       }
 
       const { data: userData } = await supabase.auth.getUser();
