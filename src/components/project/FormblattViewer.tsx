@@ -98,8 +98,8 @@ export function FormblattViewer({ project, useTypes, sites, measures, onClose }:
     setText("firmenname", org);
     setText("flurStrasse", strasse);
     setText("flurHausnummerVonZahl", hausnr);
-    setText("Gemarkung", "Freiham");
-    setText("Stadtbezirk", "22");
+    setText("Gemarkung", (project?.jurisdiction_pack_versions as any)?.ruleset?.jurisdiction?.district ?? "");
+    setText("Stadtbezirk", String((site?.metadata as any)?.stadtbezirk ?? (project?.workspaces as any)?.metadata?.default_stadtbezirk ?? ""));
     setText("vorhabenBezeichnung", project.name + " – Wohnungsbau mit " + weTotal + " Wohneinheiten, " + (site.address ?? ""));
     setText("aktenzeichen", "");
 

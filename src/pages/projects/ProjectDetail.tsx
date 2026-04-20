@@ -831,7 +831,8 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
   const activeReduction = scenarios?.find(s => s.is_baseline)?.total_reduction_pct ?? scenarios?.[0]?.total_reduction_pct ?? null;
   const sumN = baselineReqs?.reduce((s, r) => s + (Number(r.required_spaces) || 0), 0) ?? 0;
   const E = projectData?.erected_parking_spaces ?? null;
-  const verbleibend = E != null && sumN > 0 ? E : null;
+  const differenz = E != null && sumN > 0 ? (E - sumN) : null;
+  const bilanzStatus = differenz != null ? (differenz >= 0 ? "Überschuss" : "Defizit") : null;
 
   return (
     <div className="mt-6 space-y-4">
@@ -860,8 +861,15 @@ function BilanzSection({ useTypes, projectId }: { useTypes: any[]; projectId: st
             <div className="text-[15px] font-semibold text-foreground tabular-nums">{activeReduction != null ? `${activeReduction}%` : "–"}</div>
           </div>
           <div className="bg-muted/30 rounded px-3 py-2">
-            <div className="text-[11px] text-muted-foreground">Verbleibend</div>
-            <div className="text-[15px] font-semibold text-foreground tabular-nums">{verbleibend != null ? verbleibend : "–"}</div>
+            <div className="text-[11px] text-muted-foreground">Errichtet / Pflicht</div>
+            <div className={`text-[15px] font-semibold tabular-nums ${differenz == null ? "text-foreground" : differenz >= 0 ? "text-green-600" : "text-amber-600"}`}>
+              {E != null ? E : "–"} / {sumN > 0 ? sumN : "–"}
+            </div>
+            {differenz != null && (
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                {bilanzStatus}: {differenz >= 0 ? "+" : ""}{differenz} StP
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1461,7 +1469,7 @@ function MonitoringTab({ projectId }: { projectId: string }) {
       )}
 
       <p className="text-[11px] text-muted-foreground mt-4">
-        E-Mail-Benachrichtigungen werden X Tage vor Fälligkeit automatisch versendet.
+        E-Mail-Benachrichtigungen werden zum gesetzten Zeitpunkt vor Fälligkeit automatisch versendet.
         Die Konfiguration des E-Mail-Versands erfolgt über Supabase Edge Functions.
       </p>
 
