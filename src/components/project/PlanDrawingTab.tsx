@@ -26,6 +26,7 @@ interface DrawElement {
 interface PlanDrawingTabProps {
   projectId: string;
   projectName?: string;
+  siteAddress?: string | null;
 }
 
 /* ── Constants (module-level) ── */
@@ -54,7 +55,7 @@ const TOOLS = [
 const CANVAS_W = 1400;
 const CANVAS_H = 990;
 
-export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) {
+export function PlanDrawingTab({ projectId, projectName, siteAddress }: PlanDrawingTabProps) {
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [elements, setElements] = useState<DrawElement[]>([]);
@@ -66,6 +67,39 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
   const [historyIndex, setHistoryIndex] = useState(0);
   const [dragging, setDragging] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [dimStart, setDimStart] = useState<{ x: number; y: number } | null>(null);
+  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
+  const [showBg, setShowBg] = useState(true);
+  const [bgLoading, setBgLoading] = useState(false);
+
+  const loadOsmBackground = useCallback(async () => {
+    if (!siteAddress) {
+      toast.error("Standort im Schritt 'Grundlage' hinterlegen für automatischen Hintergrund");
+      return;
+    }
+    setBgLoading(true);
+    try {
+      const geo = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(siteAddress)}&format=json&limit=1`);
+      const geoData = await geo.json();
+      if (!geoData?.[0]) { toast.error("Adresse nicht gefunden"); return; }
+      const lat = parseFloat(geoData[0].lat);
+      const lon = parseFloat(geoData[0].lon);
+      const z = 18;
+      const tileX = Math.floor(((lon + 180) / 360) * Math.pow(2, z));
+      const tileY = Math.floor(
+        ((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) *
+          Math.pow(2, z)
+      );
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => { setBgImage(img); setBgLoading(false); toast.success("Katasterplan geladen"); };
+      img.onerror = () => { setBgImage(null); setBgLoading(false); toast.error("Hintergrundkachel konnte nicht geladen werden"); };
+      img.src = `https://tile.openstreetmap.org/${z}/${tileX}/${tileY}.png`;
+    } catch {
+      setBgLoading(false);
+      toast.error("Hintergrund-Laden fehlgeschlagen");
+    }
+  }, [siteAddress]);
+
 
   // Load jsPDF
   useEffect(() => {
