@@ -388,7 +388,15 @@ out center;`;
         {!overpassLoading && autoStops.length > 0 && (
           <span className="text-[11px] text-muted-foreground">{autoStops.length} Haltestellen (OSM) · {nahversorgung.length} Einrichtungen geladen</span>
         )}
+        {cacheSource && !overpassLoading && (
+          <span className="text-[10px] text-muted-foreground italic">
+            {cacheSource === "memory" ? "Cache (Session)" : cacheSource === "db" ? "Cache (gespeichert)" : "Frisch geladen"}
+          </span>
+        )}
         <div className="flex-1" />
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={refreshOverpass} disabled={overpassLoading} title="Cache leeren und ÖPNV-Daten neu laden">
+          <RefreshCw className={`h-3 w-3 mr-1 ${overpassLoading ? "animate-spin" : ""}`} /> ÖPNV neu laden
+        </Button>
         <Button variant={addStopMode ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setAddStopMode(!addStopMode)}>
           <Plus className="h-3 w-3 mr-1" /> {addStopMode ? "Klick auf Karte…" : "Haltestelle manuell"}
         </Button>
