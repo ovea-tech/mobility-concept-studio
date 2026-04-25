@@ -111,6 +111,8 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newStop, setNewStop] = useState({ name: "", type: "Bus" as TransitStop["type"], lines: "", takt_hvz: 10 });
   const [saving, setSaving] = useState(false);
+  const [cacheSource, setCacheSource] = useState<"memory" | "db" | "fresh" | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const allStops = [...autoStops, ...transitStops];
 
