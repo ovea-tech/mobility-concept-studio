@@ -444,7 +444,7 @@ export default function ProjectDetail() {
           </TabsContent>
           <TabsContent value="drawing" className="p-6 mt-0">
             <ErrorBoundary key={currentTab} fallback={<TabErrorFallback label="Stellplatzplan" />}>
-              <PlanDrawingTab projectId={project.id} />
+              <PlanDrawingTab projectId={project.id} projectName={project.name} siteAddress={(sitesData?.[0] as any)?.address ?? null} />
             </ErrorBoundary>
           </TabsContent>
         </div>
