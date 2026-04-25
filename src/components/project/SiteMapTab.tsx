@@ -8,7 +8,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { Loader2, Plus, Save, Trash2, RefreshCw } from "lucide-react";
+
+/* ── Overpass cache (module-level) ── */
+const OVERPASS_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 Tage
+const memCache = new Map<string, { stops: TransitStop[]; pois: NahversorgungPoi[]; ts: number }>();
+function cacheKey(lat: number, lon: number): string {
+  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+}
 
 declare const L: any;
 
