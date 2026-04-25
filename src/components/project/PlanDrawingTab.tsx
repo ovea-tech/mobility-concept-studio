@@ -153,6 +153,15 @@ export function PlanDrawingTab({ projectId, projectName, siteAddress }: PlanDraw
     ctx.fillStyle = "#f8f9fa";
     ctx.fillRect(0, 0, sw, sh);
 
+    // OSM Katasterplan-Hintergrund (optional, leicht transparent)
+    if (bgImage && showBg) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      const tileSize = 256;
+      ctx.drawImage(bgImage, (sw - tileSize) / 2, (sh - tileSize) / 2, tileSize, tileSize);
+      ctx.restore();
+    }
+
     // Grid
     if (showGrid) {
       for (let x = 0; x <= sw; x += S) {
@@ -365,7 +374,7 @@ export function PlanDrawingTab({ projectId, projectName, siteAddress }: PlanDraw
     }
 
     ctx.restore();
-  }, [elements, selectedId, showGrid, scale, projectName, S]);
+  }, [elements, selectedId, showGrid, scale, projectName, S, bgImage, showBg]);
 
   /* ── Interactions ── */
   const getPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
