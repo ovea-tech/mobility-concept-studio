@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   MousePointer2, Square, Accessibility, Bike, Zap, Car,
   Package, Type, Minus, Trash2, Undo2, Redo2, Grid3X3, Download, Save,
-  Ruler, AlertTriangle, FileText,
+  Ruler, AlertTriangle, FileText, Map as MapIcon,
 } from "lucide-react";
 
 /* ── Types ── */
@@ -26,6 +26,7 @@ interface DrawElement {
 interface PlanDrawingTabProps {
   projectId: string;
   projectName?: string;
+  siteAddress?: string | null;
 }
 
 /* ── Constants (module-level) ── */
@@ -54,7 +55,7 @@ const TOOLS = [
 const CANVAS_W = 1400;
 const CANVAS_H = 990;
 
-export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) {
+export function PlanDrawingTab({ projectId, projectName, siteAddress }: PlanDrawingTabProps) {
   const queryClient = useQueryClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [elements, setElements] = useState<DrawElement[]>([]);
@@ -66,6 +67,39 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
   const [historyIndex, setHistoryIndex] = useState(0);
   const [dragging, setDragging] = useState<{ id: string; offsetX: number; offsetY: number } | null>(null);
   const [dimStart, setDimStart] = useState<{ x: number; y: number } | null>(null);
+  const [bgImage, setBgImage] = useState<HTMLImageElement | null>(null);
+  const [showBg, setShowBg] = useState(true);
+  const [bgLoading, setBgLoading] = useState(false);
+
+  const loadOsmBackground = useCallback(async () => {
+    if (!siteAddress) {
+      toast.error("Standort im Schritt 'Grundlage' hinterlegen für automatischen Hintergrund");
+      return;
+    }
+    setBgLoading(true);
+    try {
+      const geo = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(siteAddress)}&format=json&limit=1`);
+      const geoData = await geo.json();
+      if (!geoData?.[0]) { toast.error("Adresse nicht gefunden"); return; }
+      const lat = parseFloat(geoData[0].lat);
+      const lon = parseFloat(geoData[0].lon);
+      const z = 18;
+      const tileX = Math.floor(((lon + 180) / 360) * Math.pow(2, z));
+      const tileY = Math.floor(
+        ((1 - Math.log(Math.tan((lat * Math.PI) / 180) + 1 / Math.cos((lat * Math.PI) / 180)) / Math.PI) / 2) *
+          Math.pow(2, z)
+      );
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => { setBgImage(img); setBgLoading(false); toast.success("Katasterplan geladen"); };
+      img.onerror = () => { setBgImage(null); setBgLoading(false); toast.error("Hintergrundkachel konnte nicht geladen werden"); };
+      img.src = `https://tile.openstreetmap.org/${z}/${tileX}/${tileY}.png`;
+    } catch {
+      setBgLoading(false);
+      toast.error("Hintergrund-Laden fehlgeschlagen");
+    }
+  }, [siteAddress]);
+
 
   // Load jsPDF
   useEffect(() => {
@@ -118,6 +152,15 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
     // Background
     ctx.fillStyle = "#f8f9fa";
     ctx.fillRect(0, 0, sw, sh);
+
+    // OSM Katasterplan-Hintergrund (optional, leicht transparent)
+    if (bgImage && showBg) {
+      ctx.save();
+      ctx.globalAlpha = 0.35;
+      const tileSize = 256;
+      ctx.drawImage(bgImage, (sw - tileSize) / 2, (sh - tileSize) / 2, tileSize, tileSize);
+      ctx.restore();
+    }
 
     // Grid
     if (showGrid) {
@@ -331,7 +374,7 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
     }
 
     ctx.restore();
-  }, [elements, selectedId, showGrid, scale, projectName, S]);
+  }, [elements, selectedId, showGrid, scale, projectName, S, bgImage, showBg]);
 
   /* ── Interactions ── */
   const getPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -533,9 +576,17 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
         <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={redo} disabled={historyIndex >= history.length - 1}>
           <Redo2 className="h-3.5 w-3.5" />
         </Button>
-        <Button variant={showGrid ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setShowGrid(!showGrid)}>
+        <Button variant={showGrid ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setShowGrid(!showGrid)} title="Raster ein/aus">
           <Grid3X3 className="h-3.5 w-3.5" />
         </Button>
+        <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={loadOsmBackground} disabled={bgLoading} title="Katasterplan-Hintergrund vom Standort laden">
+          <MapIcon className="h-3.5 w-3.5 mr-1" /> {bgLoading ? "Lädt…" : "Standort"}
+        </Button>
+        {bgImage && (
+          <Button variant={showBg ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setShowBg(!showBg)} title="Hintergrund umschalten">
+            BG
+          </Button>
+        )}
         <div className="flex-1" />
         <span className="text-[11px] text-muted-foreground tabular-nums">{Math.round(scale * 100)}%</span>
         <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={exportPng}>
@@ -573,7 +624,7 @@ export function PlanDrawingTab({ projectId, projectName }: PlanDrawingTabProps) 
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        Maßstab 1:1.000 · GaStellV Bayern §4: PKW mind. 2,30×5,00m, Behinderten 3,50×5,00m, Fahrgasse mind. 6,00m · Für Bauantrag Prüfung durch Architekten empfohlen
+        Maßstab 1:1.000 nach LBK-Vorgaben · GaStellV Bayern §4: PKW mind. 2,30×5,00m, Behinderten 3,50×5,00m, Fahrgasse 6,00–6,50m. Schriftfeld und Maßstabsleiste werden automatisch eingefügt. Für rechtsgültigen Bauantrag empfehlen wir Prüfung durch eingetragenen Architekten.
       </p>
     </div>
   );

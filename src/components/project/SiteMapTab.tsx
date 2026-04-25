@@ -8,7 +8,14 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { Loader2, Plus, Save, Trash2, RefreshCw } from "lucide-react";
+
+/* ── Overpass cache (module-level) ── */
+const OVERPASS_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 Tage
+const memCache = new Map<string, { stops: TransitStop[]; pois: NahversorgungPoi[]; ts: number }>();
+function cacheKey(lat: number, lon: number): string {
+  return `${lat.toFixed(4)},${lon.toFixed(4)}`;
+}
 
 declare const L: any;
 
@@ -104,6 +111,8 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [newStop, setNewStop] = useState({ name: "", type: "Bus" as TransitStop["type"], lines: "", takt_hvz: 10 });
   const [saving, setSaving] = useState(false);
+  const [cacheSource, setCacheSource] = useState<"memory" | "db" | "fresh" | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   const allStops = [...autoStops, ...transitStops];
 
@@ -131,66 +140,113 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
       .finally(() => setLoading(false));
   }, [site?.address]);
 
-  // Overpass
+  // Overpass with caching (memory + DB)
   useEffect(() => {
     if (!center) return;
     const [lat, lon] = center;
+    const k = cacheKey(lat, lon);
+
+    // 1) memory cache
+    const mem = memCache.get(k);
+    if (mem && Date.now() - mem.ts < OVERPASS_TTL_MS) {
+      setAutoStops(mem.stops);
+      setNahversorgung(mem.pois);
+      setCacheSource("memory");
+      return;
+    }
+    // 2) DB cache
+    const dbCache = (site?.metadata as any)?.overpass_cache;
+    if (dbCache && dbCache.key === k && Date.now() - dbCache.ts < OVERPASS_TTL_MS && Array.isArray(dbCache.stops)) {
+      memCache.set(k, { stops: dbCache.stops, pois: dbCache.pois ?? [], ts: dbCache.ts });
+      setAutoStops(dbCache.stops);
+      setNahversorgung(dbCache.pois ?? []);
+      setCacheSource("db");
+      return;
+    }
+
+    // 3) fetch fresh — combined query nach StPlS München 2025
     setOverpassLoading(true);
+    const query = `[out:json][timeout:30];
+(
+  node["railway"="station"]["station"!="light_rail"](around:700,${lat},${lon});
+  node["railway"="halt"](around:700,${lat},${lon});
+  node["station"="subway"](around:700,${lat},${lon});
+  node["railway"="tram_stop"](around:500,${lat},${lon});
+  node["highway"="bus_stop"](around:400,${lat},${lon});
+  node["public_transport"="platform"]["bus"="yes"](around:400,${lat},${lon});
+  nwr["shop"="supermarket"](around:500,${lat},${lon});
+  nwr["shop"="convenience"](around:500,${lat},${lon});
+  nwr["shop"="bakery"](around:400,${lat},${lon});
+  nwr["amenity"="pharmacy"](around:500,${lat},${lon});
+  nwr["amenity"="doctors"](around:500,${lat},${lon});
+  nwr["amenity"="clinic"](around:500,${lat},${lon});
+  nwr["amenity"="school"](around:600,${lat},${lon});
+  nwr["amenity"="kindergarten"](around:500,${lat},${lon});
+);
+out center;`;
 
-    const transitQuery = `[out:json][timeout:25];(node["railway"="station"](around:700,${lat},${lon});node["railway"="halt"](around:700,${lat},${lon});node["railway"="tram_stop"](around:500,${lat},${lon});node["highway"="bus_stop"](around:400,${lat},${lon});node["public_transport"="platform"](around:700,${lat},${lon}););out body;`;
-    const nahQuery = `[out:json][timeout:25];(nwr["shop"="supermarket"](around:600,${lat},${lon});nwr["shop"="convenience"](around:500,${lat},${lon});nwr["amenity"="pharmacy"](around:500,${lat},${lon});nwr["amenity"="doctors"](around:500,${lat},${lon});nwr["shop"="bakery"](around:400,${lat},${lon}););out center;`;
-
-    const fetchTransit = fetch("https://overpass-api.de/api/interpreter", {
+    fetch("https://overpass-api.de/api/interpreter", {
       method: "POST",
-      body: "data=" + encodeURIComponent(transitQuery),
+      body: "data=" + encodeURIComponent(query),
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     })
       .then((r) => r.json())
-      .then((data) => {
+      .then(async (data) => {
         const seen = new Set<string>();
         const stops: TransitStop[] = [];
-        for (const el of data.elements || []) {
-          const key = `${el.lat?.toFixed(4)}_${el.lon?.toFixed(4)}`;
-          if (seen.has(key) || !el.lat || !el.lon) continue;
-          seen.add(key);
-          const type = detectType(el.tags);
-          stops.push({
-            id: "osm_" + el.id.toString(),
-            name: el.tags?.name || el.tags?.["name:de"] || "Haltestelle",
-            lat: el.lat,
-            lng: el.lon,
-            type,
-            lines: el.tags?.ref || el.tags?.route_ref || "",
-            takt_hvz: type === "U-Bahn" || type === "S-Bahn" ? 10 : 20,
-            source: "overpass",
-          });
-        }
-        setAutoStops(stops);
-      })
-      .catch(() => toast.error("Overpass-API nicht erreichbar – bitte Haltestellen manuell erfassen"));
-
-    const fetchNah = fetch("https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      body: "data=" + encodeURIComponent(nahQuery),
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    })
-      .then((r) => r.json())
-      .then((data) => {
         const pois: NahversorgungPoi[] = [];
         for (const el of data.elements || []) {
           const elLat = el.lat ?? el.center?.lat;
           const elLng = el.lon ?? el.center?.lon;
           if (!elLat || !elLng) continue;
-          pois.push({ id: "am_" + el.id.toString(), name: el.tags?.name || el.tags?.brand || "Nahversorgung", lat: elLat, lng: elLng, type: detectNahType(el.tags) });
+          const tags = el.tags || {};
+          const isTransit =
+            tags.railway === "station" || tags.railway === "halt" || tags.railway === "tram_stop" ||
+            tags.station === "subway" || tags.highway === "bus_stop" || tags.public_transport === "platform";
+          if (isTransit) {
+            const key = `${elLat.toFixed(4)}_${elLng.toFixed(4)}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const type = detectType(tags);
+            stops.push({
+              id: "osm_" + el.id.toString(),
+              name: tags.name || tags["name:de"] || "Haltestelle",
+              lat: elLat, lng: elLng, type,
+              lines: tags.ref || tags.route_ref || "",
+              takt_hvz: type === "U-Bahn" || type === "S-Bahn" ? 10 : 20,
+              source: "overpass",
+            });
+          } else {
+            pois.push({
+              id: "am_" + el.id.toString(),
+              name: tags.name || tags.brand || "Nahversorgung",
+              lat: elLat, lng: elLng, type: detectNahType(tags),
+            });
+          }
         }
+        setAutoStops(stops);
         setNahversorgung(pois);
+        setCacheSource("fresh");
+        const ts = Date.now();
+        memCache.set(k, { stops, pois, ts });
+        // persist
+        if (site?.id) {
+          await supabase.from("project_sites").update({
+            metadata: { ...(site.metadata as any || {}), overpass_cache: { key: k, stops, pois, ts } },
+          }).eq("id", site.id);
+        }
       })
-      .catch(() => {});
+      .catch(() => toast.error("Overpass-API nicht erreichbar – bitte Haltestellen manuell erfassen"))
+      .finally(() => setOverpassLoading(false));
+  }, [center, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    Promise.all([fetchTransit, fetchNah]).finally(() => setOverpassLoading(false));
-  }, [center]);
+  const refreshOverpass = () => {
+    if (!center) return;
+    memCache.delete(cacheKey(center[0], center[1]));
+    setRefreshTick((n) => n + 1);
+  };
 
-  // Map init with Thunderforest + OSM fallback
+  // Map init – multi-layer (OSM / Esri Satellit / optional Thunderforest)
   useEffect(() => {
     if (!center || !mapRef.current || typeof L === "undefined") return;
     if (mapInstance.current) {
@@ -199,22 +255,40 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
     }
     const map = L.map(mapRef.current).setView(center, 15);
 
+    const TF_KEY = (import.meta as any).env?.VITE_THUNDERFOREST_API_KEY as string | undefined;
+
     const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "© OpenStreetMap",
-      maxZoom: 19,
+      attribution: "© OpenStreetMap", maxZoom: 19,
     });
-    const transportLayer = L.tileLayer(
-      "https://{s}.tile.thunderforest.com/transport/{z}/{x}/{y}.png?apikey=a5dd6a2f1c934394b9ead65d3d30fe80",
-      { attribution: "© Thunderforest Transport", maxZoom: 19 }
+    const transportLayer = TF_KEY
+      ? L.tileLayer(`https://tile.thunderforest.com/transport/{z}/{x}/{y}.png?apikey=${TF_KEY}`, {
+          attribution: "© Thunderforest © OpenStreetMap", maxZoom: 22,
+        })
+      : null;
+    const satelliteLayer = L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { attribution: "Esri World Imagery", maxZoom: 19 }
     );
-    transportLayer.on("tileerror", () => {
-      if (!(map as any)._osmFallback) {
-        osmLayer.addTo(map);
-        (map as any)._osmFallback = true;
-      }
-    });
-    transportLayer.addTo(map);
-    L.control.layers({ "ÖPNV-Karte": transportLayer, Standard: osmLayer }, {}, { position: "topright" }).addTo(map);
+
+    (transportLayer ?? osmLayer).addTo(map);
+
+    const baseLayers: Record<string, any> = {
+      "Standard (OSM)": osmLayer,
+      "Satellit (Esri)": satelliteLayer,
+    };
+    if (transportLayer) baseLayers["ÖPNV (Thunderforest)"] = transportLayer;
+    L.control.layers(baseLayers, undefined, { position: "topright", collapsed: true }).addTo(map);
+
+    if (!TF_KEY) {
+      const warn = L.control({ position: "topleft" });
+      warn.onAdd = () => {
+        const div = L.DomUtil.create("div", "leaflet-bar");
+        div.style.cssText = "background:#fef3c7;color:#92400e;padding:4px 8px;font-size:11px;border:1px solid #fde68a;border-radius:4px;max-width:240px;line-height:1.3;";
+        div.innerHTML = "ÖPNV-Layer deaktiviert. Setze VITE_THUNDERFOREST_API_KEY in .env";
+        return div;
+      };
+      warn.addTo(map);
+    }
 
     mapInstance.current = map;
     map.on("click", (e: any) => {
@@ -314,7 +388,15 @@ export function SiteMapTab({ site, projectId }: SiteMapTabProps) {
         {!overpassLoading && autoStops.length > 0 && (
           <span className="text-[11px] text-muted-foreground">{autoStops.length} Haltestellen (OSM) · {nahversorgung.length} Einrichtungen geladen</span>
         )}
+        {cacheSource && !overpassLoading && (
+          <span className="text-[10px] text-muted-foreground italic">
+            {cacheSource === "memory" ? "Cache (Session)" : cacheSource === "db" ? "Cache (gespeichert)" : "Frisch geladen"}
+          </span>
+        )}
         <div className="flex-1" />
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={refreshOverpass} disabled={overpassLoading} title="Cache leeren und ÖPNV-Daten neu laden">
+          <RefreshCw className={`h-3 w-3 mr-1 ${overpassLoading ? "animate-spin" : ""}`} /> ÖPNV neu laden
+        </Button>
         <Button variant={addStopMode ? "default" : "outline"} size="sm" className="h-7 text-xs" onClick={() => setAddStopMode(!addStopMode)}>
           <Plus className="h-3 w-3 mr-1" /> {addStopMode ? "Klick auf Karte…" : "Haltestelle manuell"}
         </Button>
