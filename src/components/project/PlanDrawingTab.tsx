@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import {
   MousePointer2, Square, Accessibility, Bike, Zap, Car,
   Package, Type, Minus, Trash2, Undo2, Redo2, Grid3X3, Download, Save,
-  Ruler, AlertTriangle, FileText,
+  Ruler, AlertTriangle, FileText, Map as MapIcon,
 } from "lucide-react";
 
 /* ── Types ── */
@@ -576,9 +576,17 @@ export function PlanDrawingTab({ projectId, projectName, siteAddress }: PlanDraw
         <Button variant="ghost" size="sm" className="h-7 px-2 text-[11px]" onClick={redo} disabled={historyIndex >= history.length - 1}>
           <Redo2 className="h-3.5 w-3.5" />
         </Button>
-        <Button variant={showGrid ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setShowGrid(!showGrid)}>
+        <Button variant={showGrid ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setShowGrid(!showGrid)} title="Raster ein/aus">
           <Grid3X3 className="h-3.5 w-3.5" />
         </Button>
+        <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={loadOsmBackground} disabled={bgLoading} title="Katasterplan-Hintergrund vom Standort laden">
+          <MapIcon className="h-3.5 w-3.5 mr-1" /> {bgLoading ? "Lädt…" : "Standort"}
+        </Button>
+        {bgImage && (
+          <Button variant={showBg ? "secondary" : "ghost"} size="sm" className="h-7 px-2 text-[11px]" onClick={() => setShowBg(!showBg)} title="Hintergrund umschalten">
+            BG
+          </Button>
+        )}
         <div className="flex-1" />
         <span className="text-[11px] text-muted-foreground tabular-nums">{Math.round(scale * 100)}%</span>
         <Button variant="outline" size="sm" className="h-7 px-2 text-[11px]" onClick={exportPng}>
@@ -616,7 +624,7 @@ export function PlanDrawingTab({ projectId, projectName, siteAddress }: PlanDraw
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        Maßstab 1:1.000 · GaStellV Bayern §4: PKW mind. 2,30×5,00m, Behinderten 3,50×5,00m, Fahrgasse mind. 6,00m · Für Bauantrag Prüfung durch Architekten empfohlen
+        Maßstab 1:1.000 nach LBK-Vorgaben · GaStellV Bayern §4: PKW mind. 2,30×5,00m, Behinderten 3,50×5,00m, Fahrgasse 6,00–6,50m. Schriftfeld und Maßstabsleiste werden automatisch eingefügt. Für rechtsgültigen Bauantrag empfehlen wir Prüfung durch eingetragenen Architekten.
       </p>
     </div>
   );
